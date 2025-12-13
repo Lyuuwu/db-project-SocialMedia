@@ -417,13 +417,14 @@
  * ngrok 例：https://abc123.ngrok-free.app
  * 同網段測試例：http://192.168.0.23:5000
  */
-const BASE_URL = "http://127.0.0.1:5000"; // ← 改成你同學後端網址
+const BASE_URL = location.origin; // ← 改成你同學後端網址
 
 const API = {
-  ping: "/db_test",           // GET
-  register: "/api/register",  // POST
-  login: "/api/login",        // POST
-  posts: "/api/posts",        // GET/POST
+  ping: "/db_test",                 // GET
+  register: "/api/v1/auth/register",// POST
+  login: "/api/v1/auth/login",      // POST
+  me: "/api/v1/users/me",           // GET/PATCH
+  posts: "/api/v1/posts",           // GET/POST (你後端若尚未做，這裡會失敗但不影響登入註冊)
 };
 
 let postsCache = [];
@@ -444,10 +445,10 @@ function setApiStatus(ok, text){
 }
 
 function setLoginDot(){
-  const u = getSession();
+  const s = getSession();
   const dot = $("loginDot");
   dot.classList.remove("ok","err");
-  dot.classList.add(u ? "ok" : "err");
+  dot.classList.add(s?.accessToken ? "ok" : "err");
 }
 
 function escapeHtml(str){
@@ -466,19 +467,20 @@ function fmtTime(t){
 }
 
 function getSession(){
-  const raw = localStorage.getItem("miniig_user");
-  return raw ? JSON.parse(raw) : null;
+  const raw = localStorage.getItem("miniig_session");
+  return raw ? JSON.parse(raw) : null; // { accessToken, user }
 }
 
-function setSession(user){
-  if (!user) localStorage.removeItem("miniig_user");
-  else localStorage.setItem("miniig_user", JSON.stringify(user));
+function setSession(session){
+  if (!session) localStorage.removeItem("miniig_session");
+  else localStorage.setItem("miniig_session", JSON.stringify(session));
   syncWhoAmI();
 }
 
 function syncWhoAmI(){
-  const u = getSession();
-  $("whoami").textContent = u ? (u.user_name || u.Email || "已登入") : "未登入（點左上角頭像登入）";
+  const s = getSession();
+  const u = s?.user;
+  $("whoami").textContent = u ? (u.userName || u.email || "已登入") : "未登入（點左上角頭像登入）";
   setLoginDot();
 }
 
@@ -516,14 +518,17 @@ async function apiFetch(path, options={}){
   const headers = Object.assign({ "Content-Type":"application/json" }, options.headers || {});
   const opts = Object.assign({}, options, { headers });
 
-  const u = getSession();
-  if (u?.token) headers.Authorization = `Bearer ${u.token}`;
+  const s = getSession();
+  if (s?.accessToken) headers.Authorization = `Bearer ${s.accessToken}`;
 
   const res = await fetch(url, opts);
+
   let data = null;
   try { data = await res.json(); } catch { data = null; }
+
   if (!res.ok){
-    const msg = data?.error || data?.message || `HTTP ${res.status}`;
+    // v1 統一錯誤格式：{ error: { code, message, details } }
+    const msg = data?.error?.message || data?.message || `HTTP ${res.status}`;
     throw new Error(msg);
   }
   return data;
@@ -533,7 +538,7 @@ async function apiFetch(path, options={}){
 async function pingBackend(){
   try{
     const data = await apiFetch(API.ping, { method:"GET" });
-    setApiStatus(true, `後端 OK：${data?.db_name ?? "db"} / ${data?.login ?? "login"}`);
+    setApiStatus(true, `後端 OK：${data?.db ?? "db"} / ${data?.login ?? "login"}`);
   }catch(e){
     setApiStatus(false, `後端失敗：${e.message}`);
   }
@@ -543,25 +548,49 @@ async function register(){
   const msg = $("regMsg");
   showMsg(msg, "", "");
 
-  const payload = {
-    user_name: $("regUserName").value.trim(),
-    Email: $("regEmail").value.trim(),
-    password: $("regPwd").value,
-    bio: $("regBio").value.trim(),
-    profile_pic: $("regPic").value.trim(),
-  };
+  const email = $("regEmail").value.trim();
+  const password = $("regPwd").value;
+  const userName = $("regUserName").value.trim();
 
-  if (!payload.user_name || !payload.Email || !payload.password){
-    return showMsg(msg, "err", "必填：user_name / Email / password");
+  // 你 UI 還留著 bio/profile_pic，我們註冊後用 PATCH /users/me 更新
+  const bio = $("regBio").value.trim();
+  const profilePic = $("regPic").value.trim();
+
+  if (!email || !password || !userName){
+    return showMsg(msg, "err", "必填：email / password / userName");
   }
-  if (payload.password.length < 10){
-    return showMsg(msg, "err", "password 至少 10 字元（你的 DB 有 check）");
+  if (password.length < 6){
+    return showMsg(msg, "err", "password 至少 6 字元");
   }
 
   try{
-    await apiFetch(API.register, { method:"POST", body: JSON.stringify(payload) });
-    showMsg(msg, "ok", "註冊成功！請切到登入。");
-    uiSetTab("login");
+    const data = await apiFetch(API.register, {
+      method:"POST",
+      body: JSON.stringify({ email, password, userName })
+    });
+
+    // v1：{ accessToken, user }
+    setSession({ accessToken: data.accessToken, user: data.user });
+
+    // 若使用者有填 bio/profilePic，註冊後立刻補一個 PATCH
+    if (bio || profilePic){
+      const patchBody = {};
+      if (bio) patchBody.bio = bio;
+      if (profilePic) patchBody.profilePic = profilePic;
+
+      const me = await apiFetch(API.me, {
+        method:"PATCH",
+        body: JSON.stringify(patchBody),
+      });
+
+      // 更新 session user
+      setSession({ accessToken: data.accessToken, user: me });
+    }
+
+    showMsg(msg, "ok", "註冊成功並已登入！");
+    await loadPosts().catch(()=>{});
+    setTimeout(()=> closeAuth(), 450);
+
   }catch(e){
     showMsg(msg, "err", `註冊失敗：${e.message}`);
   }
@@ -571,20 +600,22 @@ async function login(){
   const msg = $("authMsg");
   showMsg(msg, "", "");
 
-  const Email = $("loginEmail").value.trim();
+  const email = $("loginEmail").value.trim();
   const password = $("loginPwd").value;
-  if (!Email || !password) return showMsg(msg, "err", "請輸入 Email + password");
+  if (!email || !password) return showMsg(msg, "err", "請輸入 email + password");
 
   try{
-    const data = await apiFetch(API.login, { method:"POST", body: JSON.stringify({ Email, password }) });
-    const user = data.user || data;
-    if (!user) throw new Error("後端回傳格式不對");
+    const data = await apiFetch(API.login, {
+      method:"POST",
+      body: JSON.stringify({ email, password })
+    });
 
-    setSession(user);
-    showMsg(msg, "ok", `登入成功：${user.user_name || user.Email}`);
-    await loadPosts();
-    // close modal after a short moment
+    setSession({ accessToken: data.accessToken, user: data.user });
+
+    showMsg(msg, "ok", `登入成功：${data.user.userName || data.user.email}`);
+    await loadPosts().catch(()=>{});
     setTimeout(()=> closeAuth(), 450);
+
   }catch(e){
     showMsg(msg, "err", `登入失敗：${e.message}`);
   }
@@ -597,8 +628,8 @@ function logout(){
 
 async function loadPosts(){
   try{
-    const data = await apiFetch(API.posts, { method:"GET" });
-    postsCache = Array.isArray(data) ? data : (data.posts || []);
+    const data = await apiFetch(API.posts + "?page=1&pageSize=20", { method:"GET" });
+    postsCache = Array.isArray(data) ? data : (data.items || []);
     renderFeed();
     setApiStatus(true, "後端連線正常");
   }catch(e){
@@ -655,16 +686,17 @@ function renderFeed(){
     const card = document.createElement("div");
     card.className = "postCard";
 
-    const name = escapeHtml(p.user_name || "unknown");
-    const t = fmtTime(p.time);
+    const authorName = escapeHtml(p.author?.userName || p.user_name || "unknown");
+    const authorEmail = escapeHtml(p.author?.email || p.Email || "");
+    const t = fmtTime(p.createdAt || p.time);
     const likes = (p.likes ?? 0);
 
     const meta = document.createElement("div");
     meta.className = "postMeta";
     meta.innerHTML = `
       <div class="nameLine">
-        <b>${name}</b>
-        ${p.Email ? `<span class="badge">${escapeHtml(p.Email)}</span>` : ""}
+        <b>${authorName}</b>
+        ${authorEmail ? `<span class="badge">${authorEmail}</span>` : ""}
       </div>
       <div class="time">${t}</div>
     `;
