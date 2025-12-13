@@ -387,6 +387,250 @@ async function createPost(){
   }
 }
 
+// ===== likes preview / modal settings =====
+const LIKES_PREVIEW_LIMIT = 5; // 想要 10 就改成 10
+const LIKES_PAGE_SIZE = 200;   // modal 分頁一次拿幾個（後端有上限 200）
+
+let likesPopoverEl = null;
+let likesHideTimer = null;
+let activeLikesAnchor = null;
+let activeLikesPostId = null;
+
+const likesPreviewCache = new Map();
+const LIKES_PREVIEW_CACHE_MS = 15000;
+
+function ensureLikesPopover(){
+  if (likesPopoverEl) return likesPopoverEl;
+
+  likesPopoverEl = document.createElement("div");
+  likesPopoverEl.className = "likesPopover";
+  likesPopoverEl.id = "likesPopover";
+  likesPopoverEl.innerHTML = `
+    <div class="likesPopoverTitle">載入中…</div>
+    <div class="likesPopoverList"></div>
+  `;
+  document.body.appendChild(likesPopoverEl);
+
+  likesPopoverEl.addEventListener("pointerenter", () => {
+    if (likesHideTimer) clearTimeout(likesHideTimer);
+    likesHideTimer = null;
+  });
+  likesPopoverEl.addEventListener("pointerleave", () => scheduleHideLikesPopover());
+
+  window.addEventListener("scroll", () => {
+    if (likesPopoverEl?.classList.contains("show") && activeLikesAnchor) positionLikesPopover(activeLikesAnchor);
+  }, true);
+  window.addEventListener("resize", () => {
+    if (likesPopoverEl?.classList.contains("show") && activeLikesAnchor) positionLikesPopover(activeLikesAnchor);
+  });
+
+  return likesPopoverEl;
+}
+
+function scheduleHideLikesPopover(){
+  if (likesHideTimer) clearTimeout(likesHideTimer);
+  likesHideTimer = setTimeout(() => hideLikesPopover(), 120);
+}
+
+function hideLikesPopover(){
+  if (!likesPopoverEl) return;
+  likesPopoverEl.classList.remove("show");
+  activeLikesAnchor = null;
+  activeLikesPostId = null;
+}
+
+function positionLikesPopover(anchor){
+  const pop = ensureLikesPopover();
+  const rect = anchor.getBoundingClientRect();
+
+  const gap = 8;
+  let top = rect.bottom + gap;
+  let left = rect.left;
+
+  // 防止超出右邊
+  const vw = window.innerWidth;
+  const popW = Math.min(340, Math.max(260, pop.offsetWidth || 280));
+  if (left + popW > vw - 10) left = vw - popW - 10;
+  if (left < 10) left = 10;
+
+  pop.style.top = `${top}px`;
+  pop.style.left = `${left}px`;
+}
+
+async function fetchLikesPreview(postId){
+  const now = Date.now();
+  const cached = likesPreviewCache.get(postId);
+  if (cached && (now - cached.ts) < LIKES_PREVIEW_CACHE_MS) return cached.data;
+
+  const qs = new URLSearchParams({ limit: String(LIKES_PREVIEW_LIMIT) });
+  const data = await apiFetch(`${API.posts}/${postId}/likes?${qs.toString()}`);
+  likesPreviewCache.set(postId, { ts: now, data });
+  return data;
+}
+
+async function fetchLikesPage(postId, page){
+  const qs = new URLSearchParams({
+    page: String(page),
+    pageSize: String(LIKES_PAGE_SIZE),
+  });
+  return await apiFetch(`${API.posts}/${postId}/likes?${qs.toString()}`);
+}
+
+function renderLikeUserRow(u){
+  const name = escapeHtml(u.userName || "unknown");
+  const pic = normalizeBackendUrl(u.profilePic || "");
+  const avatar = pic
+    ? `<img class="likeMiniAvatar" src="${escapeHtml(pic)}" alt="avatar" />`
+    : `<div class="likeMiniFallback">${name.slice(0,1).toUpperCase()}</div>`;
+
+  return `<div class="likeRow">${avatar}<div class="likeName">${name}</div></div>`;
+}
+
+async function showLikesPreview(anchorEl){
+  const postId = Number(anchorEl.dataset.postId);
+  if (!postId) return;
+
+  const pop = ensureLikesPopover();
+
+  if (likesHideTimer) clearTimeout(likesHideTimer);
+  likesHideTimer = null;
+
+  activeLikesAnchor = anchorEl;
+  activeLikesPostId = postId;
+
+  positionLikesPopover(anchorEl);
+  pop.classList.add("show");
+  pop.querySelector(".likesPopoverTitle").textContent = "載入中…";
+  pop.querySelector(".likesPopoverList").innerHTML = "";
+
+  try{
+    const data = await fetchLikesPreview(postId);
+    const items = data.items || [];
+    const total = data.total ?? items.length;
+
+    pop.querySelector(".likesPopoverTitle").textContent = `${total} 人按讚`;
+    pop.querySelector(".likesPopoverList").innerHTML = items.length
+      ? items.map(renderLikeUserRow).join("")
+      : `<div class="msg" style="display:block; padding:6px 0;">目前還沒有人按讚</div>`;
+
+    if (total > LIKES_PREVIEW_LIMIT){
+      pop.querySelector(".likesPopoverList").insertAdjacentHTML(
+        "beforeend",
+        `<div style="opacity:.75; padding:4px 8px;">…以及其他 ${total - LIKES_PREVIEW_LIMIT} 人</div>`
+      );
+    }
+  }catch(e){
+    pop.querySelector(".likesPopoverTitle").textContent = "讀取失敗";
+    pop.querySelector(".likesPopoverList").innerHTML = `<div class="msg" style="display:block;">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+// ===== likes modal =====
+let likesUiInited = false;
+
+function initLikesUi(){
+  if (likesUiInited) return;
+  likesUiInited = true;
+
+  const feed = $("feed");
+  if (feed){
+    feed.addEventListener("pointerover", (e) => {
+      const a = e.target.closest?.(".likesLink");
+      if (!a) return;
+      showLikesPreview(a);
+    });
+
+    feed.addEventListener("pointerout", (e) => {
+      const a = e.target.closest?.(".likesLink");
+      if (!a) return;
+
+      // 若移動到 popover 本身，就不要立刻關
+      const rt = e.relatedTarget;
+      if (rt && likesPopoverEl && likesPopoverEl.contains(rt)) return;
+
+      scheduleHideLikesPopover();
+    });
+
+    feed.addEventListener("click", (e) => {
+      const a = e.target.closest?.(".likesLink");
+      if (!a) return;
+      e.preventDefault();
+      e.stopPropagation();
+      hideLikesPopover();
+      openLikesModal(Number(a.dataset.postId));
+    });
+  }
+
+  const overlay = $("likesOverlay");
+  const modal = $("likesModal");
+  const closeBtn = $("likesCloseBtn");
+
+  if (overlay){
+    overlay.addEventListener("click", (e) => {
+      // 點到 overlay 空白處才關
+      if (e.target === overlay) closeLikesModal();
+    });
+  }
+  if (modal){
+    modal.addEventListener("click", (e) => e.stopPropagation());
+  }
+  if (closeBtn){
+    closeBtn.addEventListener("click", closeLikesModal);
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeLikesModal();
+  });
+}
+
+function openLikesModal(postId){
+  const overlay = $("likesOverlay");
+  if (!overlay || !postId) return;
+
+  overlay.classList.add("open");
+  overlay.setAttribute("aria-hidden", "false");
+
+  $("likesModalHeader").textContent = "載入中…";
+  $("likesModalList").innerHTML = "";
+
+  loadAllLikesIntoModal(postId).catch(()=>{});
+}
+
+function closeLikesModal(){
+  const overlay = $("likesOverlay");
+  if (!overlay) return;
+  overlay.classList.remove("open");
+  overlay.setAttribute("aria-hidden", "true");
+}
+
+async function loadAllLikesIntoModal(postId){
+  const header = $("likesModalHeader");
+  const listEl = $("likesModalList");
+
+  let page = 1;
+  let all = [];
+  let total = 0;
+
+  while (true){
+    const data = await fetchLikesPage(postId, page);
+    const items = data.items || [];
+    total = data.total ?? total;
+
+    all = all.concat(items);
+
+    if (items.length === 0) break;
+    if (total && all.length >= total) break;
+
+    page += 1;
+    if (page > 200) break; // 極端保護：避免無限迴圈
+  }
+
+  header.textContent = total ? `共 ${total} 人按讚` : "目前還沒有人按讚";
+  listEl.innerHTML = all.length
+    ? all.map(renderLikeUserRow).join("")
+    : `<div class="msg" style="display:block;">目前還沒有人按讚</div>`;
+}
+
 function renderFeed(){
   const q = ($("search")?.value || "").trim().toLowerCase();
   const feed = $("feed");
@@ -447,7 +691,7 @@ function renderFeed(){
     const postId = p.postId;
     const heart = p.likedByMe ? "♥" : "♡";
     footer.innerHTML = `
-      <span>likes: ${likes}</span>
+      <span class="likesLink" data-post-id="${postId}">likes: ${likes}</span>
       <span style="display:flex; gap:8px; align-items:center;">
         <button class="btn ghost" onclick="toggleLike(${postId})">${heart} Like</button>
         <span class="badge">from API</span>
@@ -494,6 +738,8 @@ function initHome(){
   syncAccountUI();
 
   showPage("home");
+  initLikesUi();
+  
   updateCharCount();
   bindFilePreview();
 

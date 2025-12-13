@@ -674,6 +674,104 @@ def unlike_post(post_id: int):
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))
 
+def make_like_user_json(row) -> Dict[str, Any]:
+    # row: (user_id, user_name, profile_pic)
+    return {
+        "userId": int(row[0]),
+        "userName": row[1],
+        "profilePic": row[2],
+    }
+
+
+@app.get(f"{API_PREFIX}/posts/<int:post_id>/likes")
+def post_likes_list(post_id: int):
+    """
+    用法：
+      - Hover 預覽：GET /api/v1/posts/<post_id>/likes?limit=5
+      - Modal 全部：GET /api/v1/posts/<post_id>/likes?page=1&pageSize=200
+        （前端會自動翻頁直到拿完）
+    """
+    # 參數（兩種模式：limit 或 page/pageSize）
+    limit_q = request.args.get("limit")
+
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+
+            # 先確認 post 存在（避免 post_id 打錯時回空陣列讓人困惑）
+            cur.execute(f"SELECT 1 FROM {tbl('post')} WHERE post_id = ?", (post_id,))
+            if not cur.fetchone():
+                return api_error(404, "NOT_FOUND", "Post not found.")
+
+            # 總數
+            cur.execute(f"SELECT COUNT(*) FROM {tbl('likes')} WHERE post_id = ?", (post_id,))
+            total = int(cur.fetchone()[0])
+
+            if limit_q is not None:
+                # Hover 預覽模式
+                try:
+                    limit = int(limit_q)
+                except ValueError:
+                    return api_error(400, "VALIDATION_ERROR", "Invalid limit.", [])
+                if limit < 1:
+                    limit = 5
+                if limit > 50:
+                    limit = 50
+
+                cur.execute(
+                    f"""
+                    SELECT TOP (?) u.user_id, u.user_name, u.profile_pic
+                    FROM {tbl('likes')} l
+                    JOIN {tbl('users')} u ON u.user_id = l.user_id
+                    WHERE l.post_id = ?
+                    ORDER BY u.user_name ASC;
+                    """,
+                    (limit, post_id),
+                )
+                rows = cur.fetchall()
+                return jsonify({"items": [make_like_user_json(r) for r in rows], "total": total, "limit": limit}), 200
+
+            # Modal（可分頁拿全部）
+            try:
+                page = int(request.args.get("page", 1))
+                page_size = int(request.args.get("pageSize", 200))
+            except ValueError:
+                return api_error(400, "VALIDATION_ERROR", "Invalid pagination.", [])
+
+            if page < 1:
+                page = 1
+            if page_size < 1:
+                page_size = 50
+            if page_size > 200:
+                page_size = 200
+
+            offset = (page - 1) * page_size
+
+            cur.execute(
+                f"""
+                SELECT u.user_id, u.user_name, u.profile_pic
+                FROM {tbl('likes')} l
+                JOIN {tbl('users')} u ON u.user_id = l.user_id
+                WHERE l.post_id = ?
+                ORDER BY u.user_name ASC
+                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY;
+                """,
+                (post_id, offset, page_size),
+            )
+            rows = cur.fetchall()
+
+        return jsonify(
+            {
+                "items": [make_like_user_json(r) for r in rows],
+                "total": total,
+                "page": page,
+                "pageSize": page_size,
+            }
+        ), 200
+
+    except Exception as e:
+        return api_error(500, "INTERNAL_ERROR", str(e))
+
 # ---------------------------
 # Upload
 # ---------------------------

@@ -9,6 +9,21 @@
   <script src="/static/app.js" defer></script>
 </head>
 
+<!-- Likes Modal -->
+<div id="likesOverlay" class="overlay" aria-hidden="true">
+  <div id="likesModal" class="modal likesModal" role="dialog" aria-modal="true" aria-label="Likes list">
+    <div class="modalTop">
+      <div style="font-weight:900;">按讚的人</div>
+      <button id="likesCloseBtn" class="closeBtn" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div id="likesModalHeader" class="likesModalHeader"></div>
+      <div id="likesModalList" class="likesList"></div>
+    </div>
+  </div>
+</div>
+
+
 <body data-page="home">
   <div class="wrap">
     <div class="topbar">

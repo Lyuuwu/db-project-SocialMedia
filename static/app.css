@@ -458,3 +458,90 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   padding: 0;
   margin-top: 6px;
 }
+
+/* ===== likes link ===== */
+.likesLink{
+  cursor:pointer;
+  user-select:none;
+  border-bottom: 1px dotted rgba(255,255,255,.55);
+}
+.likesLink:hover{
+  border-bottom-color: rgba(255,255,255,.9);
+}
+
+/* ===== likes hover popover (fixed, 不怕被 overflow 擋住) ===== */
+.likesPopover{
+  position: fixed;
+  z-index: 3000;
+  min-width: 260px;
+  max-width: 340px;
+
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(17,24,39,.88);
+  backdrop-filter: blur(14px);
+  border-radius: 14px;
+  box-shadow: 0 20px 80px rgba(0,0,0,.45);
+  padding: 10px;
+
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity .12s ease, transform .12s ease;
+}
+.likesPopover.show{
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.likesPopoverTitle{
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+.likesPopoverList{
+  display: grid;
+  gap: 6px;
+}
+.likeRow{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding: 6px 8px;
+  border-radius: 12px;
+}
+.likeRow:hover{
+  background: rgba(255,255,255,.06);
+}
+.likeMiniAvatar,
+.likeMiniFallback{
+  width:26px;
+  height:26px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  flex: 0 0 auto;
+}
+.likeMiniAvatar{ object-fit:cover; display:block; }
+.likeMiniFallback{
+  display:grid;
+  place-items:center;
+  font-weight:900;
+  color: rgba(255,255,255,.88);
+}
+.likeName{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+/* ===== likes modal content ===== */
+.likesModalHeader{
+  opacity:.85;
+  margin: 4px 0 10px;
+}
+.likesList{
+  display:grid;
+  gap: 8px;
+  max-height: 60vh;
+  overflow:auto;
+  padding-right: 2px;
+}
