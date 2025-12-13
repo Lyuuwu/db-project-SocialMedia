@@ -1,18 +1,23 @@
+from __future__ import annotations
+
+from typing import Any, Dict, List, Optional
+
 from flask import Blueprint, jsonify, request
 
-from ..errors import api_error
-from ..db import get_conn, tbl
-from ..auth_utils import require_auth_user_id, get_optional_auth_user_id
-from ..serializers import make_like_user_json, make_post_json
-from typing import Any, Dict
-
+from ..auth_utils import get_optional_auth_user_id, require_auth_user_id
 from ..config import Config
+from ..db import get_conn, tbl
+from ..errors import api_error
+from ..serializers import make_like_user_json, make_post_json
+
 
 bp = Blueprint("posts", __name__, url_prefix=f"{Config.API_PREFIX}/posts")
 
-@bp.get('')
+
+@bp.get("")
+@bp.get("/")
 def posts_list():
-    # /api/v1/posts?page=1&pageSize=20
+    # GET /api/v1/posts?page=1&pageSize=20
     try:
         page = int(request.args.get("page", 1))
         page_size = int(request.args.get("pageSize", 20))
@@ -28,47 +33,48 @@ def posts_list():
 
     offset = (page - 1) * page_size
     me = get_optional_auth_user_id()
+    me_for_case = me if me is not None else -1
 
     try:
         with get_conn() as conn:
             cur = conn.cursor()
 
-            # total
             cur.execute(f"SELECT COUNT(*) FROM {tbl('post')}")
             total = int(cur.fetchone()[0])
 
-            # items (join users)
+            # NOTE: commentCount 用 correlated subquery（小專案量級 OK）
+            base_select = f"""
+                SELECT
+                    p.post_id, p.picture, p.content, p.likes, p.created_at,
+                    u.user_id, u.user_name, u.profile_pic,
+                    {{LIKED_BY_ME}} AS likedByMe,
+                    (
+                        SELECT COUNT(*)
+                        FROM {tbl('comment')} c
+                        WHERE c.post_id = p.post_id
+                    ) AS commentCount
+                FROM {tbl('post')} p
+                JOIN {tbl('users')} u ON u.user_id = p.user_id
+            """
+
             if me is None:
-                cur.execute(
-                    """
-                    SELECT
-                    p.post_id, p.picture, p.content, p.likes, p.created_at,
-                    u.user_id, u.user_name, u.profile_pic,
-                    CAST(0 AS bit) AS likedByMe
-                    FROM dbo.[post] p
-                    JOIN dbo.[users] u ON u.user_id = p.user_id
-                    ORDER BY p.created_at DESC
-                    OFFSET ? ROWS FETCH NEXT ? ROWS ONLY;
-                    """,
-                    (offset, page_size),
+                sql = (
+                    base_select.replace("{LIKED_BY_ME}", "CAST(0 AS bit)")
+                    + " ORDER BY p.created_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY;"
                 )
+                cur.execute(sql, (offset, page_size))
             else:
-                cur.execute(
-                    f"""
-                    SELECT
-                    p.post_id, p.picture, p.content, p.likes, p.created_at,
-                    u.user_id, u.user_name, u.profile_pic,
-                    CASE WHEN EXISTS (
-                        SELECT 1 FROM {tbl('likes')} l
-                        WHERE l.post_id = p.post_id AND l.user_id = ?
-                    ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS likedByMe
-                    FROM {tbl('post')} p
-                    JOIN {tbl('users')} u ON u.user_id = p.user_id
-                    ORDER BY p.created_at DESC
-                    OFFSET ? ROWS FETCH NEXT ? ROWS ONLY;
-                    """,
-                    (me, offset, page_size),
+                sql = (
+                    base_select.replace(
+                        "{LIKED_BY_ME}",
+                        f"CASE WHEN EXISTS (\n"
+                        f"    SELECT 1 FROM {tbl('likes')} l\n"
+                        f"    WHERE l.post_id = p.post_id AND l.user_id = ?\n"
+                        f") THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END",
+                    )
+                    + " ORDER BY p.created_at DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY;"
                 )
+                cur.execute(sql, (me_for_case, offset, page_size))
 
             rows = cur.fetchall()
 
@@ -78,9 +84,11 @@ def posts_list():
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))
 
-@bp.post('')
+
+@bp.post("")
+@bp.post("/")
 def posts_create():
-    # Auth required
+    # POST /api/v1/posts
     try:
         me = require_auth_user_id()
     except PermissionError:
@@ -90,7 +98,7 @@ def posts_create():
     picture = (data.get("picture") or "").strip() or None
     content = (data.get("content") or "").strip()
 
-    details = []
+    details: List[Dict[str, str]] = []
     if not content:
         details.append({"field": "content", "reason": "required"})
     elif len(content) > 500:
@@ -114,15 +122,15 @@ def posts_create():
             new_post_id = int(cur.fetchone()[0])
             conn.commit()
 
-            # fetch new post with author
             cur.execute(
                 f"""
                 SELECT
                     p.post_id, p.picture, p.content, p.likes, p.created_at,
                     u.user_id, u.user_name, u.profile_pic,
-                    CAST(0 AS bit) AS likedByMe
-                FROM {tbl('post')} AS p
-                JOIN {tbl('users')} AS u ON u.user_id = p.user_id
+                    CAST(0 AS bit) AS likedByMe,
+                    CAST(0 AS int) AS commentCount
+                FROM {tbl('post')} p
+                JOIN {tbl('users')} u ON u.user_id = p.user_id
                 WHERE p.post_id = ?;
                 """,
                 (new_post_id,),
@@ -134,7 +142,8 @@ def posts_create():
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))
 
-@bp.post('/<int:post_id>/like')
+
+@bp.post("/<int:post_id>/like")
 def like_post(post_id: int):
     try:
         me = require_auth_user_id()
@@ -146,7 +155,10 @@ def like_post(post_id: int):
             cur = conn.cursor()
 
             # idempotent：已按讚就直接回 liked=true
-            cur.execute(f"SELECT 1 FROM {tbl('likes')} WHERE post_id=? AND user_id=?", (post_id, me))
+            cur.execute(
+                f"SELECT 1 FROM {tbl('likes')} WHERE post_id=? AND user_id=?",
+                (post_id, me),
+            )
             if cur.fetchone():
                 cur.execute(f"SELECT likes FROM {tbl('post')} WHERE post_id=?", (post_id,))
                 r = cur.fetchone()
@@ -155,7 +167,10 @@ def like_post(post_id: int):
                 return jsonify({"liked": True, "likes": int(r[0])}), 200
 
             # insert like + likes+1
-            cur.execute(f"INSERT INTO {tbl('likes')}(post_id, user_id) VALUES (?, ?)", (post_id, me))
+            cur.execute(
+                f"INSERT INTO {tbl('likes')}(post_id, user_id) VALUES (?, ?)",
+                (post_id, me),
+            )
             cur.execute(f"UPDATE {tbl('post')} SET likes = likes + 1 WHERE post_id=?", (post_id,))
             if cur.rowcount == 0:
                 conn.rollback()
@@ -170,7 +185,8 @@ def like_post(post_id: int):
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))
 
-@bp.delete('/<int:post_id>/like')
+
+@bp.delete("/<int:post_id>/like")
 def unlike_post(post_id: int):
     try:
         me = require_auth_user_id()
@@ -182,7 +198,10 @@ def unlike_post(post_id: int):
             cur = conn.cursor()
 
             # 先刪 like
-            cur.execute(f"DELETE FROM {tbl('likes')} WHERE post_id=? AND user_id=?", (post_id, me))
+            cur.execute(
+                f"DELETE FROM {tbl('likes')} WHERE post_id=? AND user_id=?",
+                (post_id, me),
+            )
             deleted = cur.rowcount
 
             # 若真的有刪到，likes-1（保護不低於 0）
@@ -209,38 +228,35 @@ def unlike_post(post_id: int):
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))
 
-@bp.get('/<int:post_id>/likes')
+
+@bp.get("/<int:post_id>/likes")
 def post_likes_list(post_id: int):
     """
     用法：
-      - Hover 預覽：GET /api/v1/posts/<post_id>/likes?limit=5
+      - Hover 預覽：GET /api/v1/posts/<post_id>/likes?limit=8
       - Modal 全部：GET /api/v1/posts/<post_id>/likes?page=1&pageSize=200
-        （前端會自動翻頁直到拿完）
     """
-    # 參數（兩種模式：limit 或 page/pageSize）
     limit_q = request.args.get("limit")
 
     try:
         with get_conn() as conn:
             cur = conn.cursor()
 
-            # 先確認 post 存在（避免 post_id 打錯時回空陣列讓人困惑）
             cur.execute(f"SELECT 1 FROM {tbl('post')} WHERE post_id = ?", (post_id,))
             if not cur.fetchone():
                 return api_error(404, "NOT_FOUND", "Post not found.")
 
-            # 總數
             cur.execute(f"SELECT COUNT(*) FROM {tbl('likes')} WHERE post_id = ?", (post_id,))
             total = int(cur.fetchone()[0])
 
             if limit_q is not None:
-                # Hover 預覽模式
                 try:
                     limit = int(limit_q)
                 except ValueError:
                     return api_error(400, "VALIDATION_ERROR", "Invalid limit.", [])
+
                 if limit < 1:
-                    limit = 5
+                    limit = 8
                 if limit > 50:
                     limit = 50
 
@@ -255,9 +271,11 @@ def post_likes_list(post_id: int):
                     (limit, post_id),
                 )
                 rows = cur.fetchall()
-                return jsonify({"items": [make_like_user_json(r) for r in rows], "total": total, "limit": limit}), 200
+                return (
+                    jsonify({"items": [make_like_user_json(r) for r in rows], "total": total, "limit": limit}),
+                    200,
+                )
 
-            # Modal（可分頁拿全部）
             try:
                 page = int(request.args.get("page", 1))
                 page_size = int(request.args.get("pageSize", 200))
@@ -286,14 +304,17 @@ def post_likes_list(post_id: int):
             )
             rows = cur.fetchall()
 
-        return jsonify(
-            {
-                "items": [make_like_user_json(r) for r in rows],
-                "total": total,
-                "page": page,
-                "pageSize": page_size,
-            }
-        ), 200
+        return (
+            jsonify(
+                {
+                    "items": [make_like_user_json(r) for r in rows],
+                    "total": total,
+                    "page": page,
+                    "pageSize": page_size,
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))

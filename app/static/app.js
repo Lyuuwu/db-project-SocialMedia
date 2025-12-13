@@ -1,5 +1,6 @@
-// const BASE_URL = "https://snufflingly-subuncinate-rosario.ngrok-free.dev/"; // 後端 base
-BASE_URL = location.origin
+// ✅ 建議：同源部署時，直接用 location.origin，避免 https 頁面去抓 http API（Mixed Content）
+// 若你要改成「前後端不同網域」，才把 BASE_URL 換成 "https://..."。
+const BASE_URL = ""; // 例如："https://xxxx.ngrok-free.dev"（不要尾斜線）
 const AUTH_PAGE_URL = "/static/auth.html"; // Flask 靜態頁面路徑（需要就改）
 
 const API = {
@@ -9,6 +10,7 @@ const API = {
   me: "/api/v1/users/me",
   users: "/api/v1/users",
   posts: "/api/v1/posts",
+  comments: "/api/v1/comments",
   upload: "/api/upload"
 };
 
@@ -98,11 +100,16 @@ function initialsFromUser(u){
   return base.slice(0, 1).toUpperCase();
 }
 
+function baseOrigin(){
+  const v = (BASE_URL || "").trim().replace(/\/$/, "");
+  return v || location.origin;
+}
+
 function normalizeBackendUrl(p){
   const v = (p || "").trim();
   if (!v) return "";
   if (v.startsWith("http://") || v.startsWith("https://")) return v;
-  return BASE_URL.replace(/\/$/,"") + (v.startsWith("/") ? v : ("/" + v));
+  return baseOrigin() + (v.startsWith("/") ? v : ("/" + v));
 }
 
 function syncAccountUI(){
@@ -170,7 +177,7 @@ function goBackFromAuth(){
 
 /* ===== API helper ===== */
 async function apiFetch(path, options={}){
-  const url = BASE_URL.replace(/\/$/,"") + path;
+  const url = baseOrigin() + path;
   const headers = Object.assign({ "Content-Type":"application/json" }, options.headers || {});
   const opts = Object.assign({}, options, { headers });
 
@@ -344,7 +351,7 @@ async function uploadImageIfNeeded(){
   const fd = new FormData();
   fd.append("file", file);
 
-  const url = BASE_URL.replace(/\/$/,"") + API.upload;
+  const url = baseOrigin() + API.upload;
   const headers = {};
   if (s?.accessToken) headers.Authorization = `Bearer ${s.accessToken}`;
 
@@ -706,6 +713,8 @@ function renderFeed(){
     return;
   }
 
+  const openCommentsToLoad = [];
+
   list.forEach(p=>{
     const card = document.createElement("div");
     card.className = "postCard";
@@ -757,8 +766,10 @@ function renderFeed(){
     footer.className = "footerBar";
     const postId = p.postId;
     const heart = p.likedByMe ? "♥" : "♡";
+    const commentCount = Number(p.commentCount ?? 0);
     footer.innerHTML = `
       <span class="likesLink" data-post-id="${postId}">likes: ${likes}</span>
+      <button class="btn ghost small toggleCommentsBtn" id="commentsToggleBtn-${postId}" data-post-id="${postId}">💬 留言 (${commentCount})</button>
       <span style="display:flex; gap:8px; align-items:center;">
         <button class="btn ghost" onclick="toggleLike(${postId})">${heart} Like</button>
         <span class="badge">from API</span>
@@ -766,7 +777,35 @@ function renderFeed(){
     `;
 
     card.appendChild(footer);
+
+    // --- comments panel ---
+    const commentsOpen = commentsOpenSet.has(postId);
+    const commentsWrap = document.createElement("div");
+    commentsWrap.className = "commentsWrap";
+    commentsWrap.innerHTML = `
+      <div class="commentsPanel" id="commentsPanel-${postId}" style="display:${commentsOpen ? "block" : "none"};">
+        <div class="commentsHeader">
+          <span class="commentsStatus" id="commentsStatus-${postId}"></span>
+        </div>
+        <div class="commentsList" id="commentsList-${postId}"></div>
+        <div class="commentComposer">
+          <textarea class="commentInput" id="commentInput-${postId}" maxlength="1024" placeholder="寫留言…"></textarea>
+          <div class="commentActions">
+            <button class="btn primary small commentSendBtn" data-post-id="${postId}">送出</button>
+            <div class="msg" id="commentMsg-${postId}" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    card.appendChild(commentsWrap);
+
+    if (commentsOpen) openCommentsToLoad.push(postId);
     feed.appendChild(card);
+  });
+
+  // 如果有維持展開的留言區，重新抓一次（避免 renderFeed 後留言列表是空的）
+  openCommentsToLoad.forEach(pid => {
+    loadComments(pid).catch(()=>{});
   });
 }
 
@@ -798,6 +837,271 @@ async function toggleLike(postId){
     }catch(e){
     setApiStatus(false, `更新 like 失敗：${e.message}`);
     }
+}
+
+/* =========================
+   Comments
+   ========================= */
+
+const commentsOpenSet = new Set(); // postId
+const commentsCache = new Map();   // postId -> {ts, data}
+const COMMENTS_CACHE_MS = 15000;
+
+function invalidateComments(postId){
+  commentsCache.delete(postId);
+}
+
+async function fetchComments(postId, page = 1, pageSize = 200){
+  const qs = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  return await apiFetch(`${API.posts}/${postId}/comments?${qs.toString()}`, { method: "GET" });
+}
+
+function renderCommentRow(c){
+  const author = c.author || {};
+  const authorId = Number(author.userId || 0);
+  const rawName = author.userName || "unknown";
+  const name = escapeHtml(rawName);
+  const pic = normalizeBackendUrl(author.profilePic || "");
+  const initial = firstLetter(rawName);
+  const avatarHtml = pic
+    ? `<img class="commentAvatar" src="${escapeHtml(pic)}" alt="avatar" />`
+    : `<div class="commentFallback">${escapeHtml(initial)}</div>`;
+
+  const time = escapeHtml(fmtTime(c.createdAt || ""));
+  const contentHtml = escapeHtml(c.content || "").replaceAll("\n", "<br>");
+  const canEdit = !!c.editableByMe;
+  const editBtn = canEdit
+    ? `<button class="btn ghost tiny commentEditBtn" data-comment-id="${c.commentId}" data-post-id="${c.postId}">編輯</button>`
+    : "";
+
+  // 注意：textarea 內容要 escape，避免破壞 HTML
+  const textareaValue = escapeHtml(c.content || "");
+
+  return `
+    <div class="commentItem" data-comment-id="${c.commentId}" data-post-id="${c.postId}">
+      <div class="commentMeta">
+        <span class="authorChip" data-user-id="${authorId}" data-user-name="${escapeHtml(rawName)}">
+          ${avatarHtml}
+          <b>${name}</b>
+        </span>
+        <span class="commentTime">${time}</span>
+        ${editBtn}
+      </div>
+      <div class="commentContent">${contentHtml}</div>
+      <div class="commentEditArea" style="display:none;">
+        <textarea class="commentEditInput" maxlength="1024">${textareaValue}</textarea>
+        <div class="commentEditActions">
+          <button class="btn primary tiny commentSaveBtn" data-comment-id="${c.commentId}" data-post-id="${c.postId}">儲存</button>
+          <button class="btn ghost tiny commentCancelBtn" data-comment-id="${c.commentId}" data-post-id="${c.postId}">取消</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function loadComments(postId, { force = false } = {}){
+  const listEl = document.getElementById(`commentsList-${postId}`);
+  const statusEl = document.getElementById(`commentsStatus-${postId}`);
+  const toggleBtn = document.getElementById(`commentsToggleBtn-${postId}`);
+  if (!listEl || !statusEl || !toggleBtn) return;
+
+  statusEl.textContent = "載入中…";
+  listEl.innerHTML = "";
+
+  try{
+    const now = Date.now();
+    const cached = commentsCache.get(postId);
+    let data;
+    if (!force && cached && (now - cached.ts) < COMMENTS_CACHE_MS){
+      data = cached.data;
+    }else{
+      data = await fetchComments(postId, 1, 200);
+      commentsCache.set(postId, { ts: Date.now(), data });
+    }
+
+    const items = data.items || [];
+    const total = data.total ?? items.length;
+
+    toggleBtn.textContent = `💬 留言 (${total})`;
+    statusEl.textContent = "";
+
+    if (items.length === 0){
+      listEl.innerHTML = `<div class="msg" style="display:block;">還沒有留言</div>`;
+    }else{
+      listEl.innerHTML = items.map(renderCommentRow).join("");
+    }
+
+    const p = (postsCache || []).find(x => x.postId === postId);
+    if (p) p.commentCount = total;
+
+  }catch(e){
+    statusEl.textContent = "";
+    listEl.innerHTML = `<div class="msg" style="display:block;">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+async function toggleComments(postId){
+  const panel = document.getElementById(`commentsPanel-${postId}`);
+  if (!panel) return;
+  const opening = panel.style.display === "none";
+
+  if (!opening){
+    panel.style.display = "none";
+    commentsOpenSet.delete(postId);
+    return;
+  }
+
+  panel.style.display = "block";
+  commentsOpenSet.add(postId);
+  await loadComments(postId).catch(()=>{});
+}
+
+async function createComment(postId){
+  const s = getSession();
+  if (!s?.accessToken){
+    goToAuth();
+    return;
+  }
+
+  const inputEl = document.getElementById(`commentInput-${postId}`);
+  const msgEl = document.getElementById(`commentMsg-${postId}`);
+  const listEl = document.getElementById(`commentsList-${postId}`);
+  const toggleBtn = document.getElementById(`commentsToggleBtn-${postId}`);
+  if (!inputEl || !listEl || !toggleBtn) return;
+
+  const content = (inputEl.value || "").trim();
+  if (!content){
+    showMsg(msgEl, "err", "留言不能空");
+    return;
+  }
+
+  try{
+    showMsg(msgEl, "", "送出中…");
+    const c = await apiFetch(`${API.posts}/${postId}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    });
+
+    inputEl.value = "";
+    showMsg(msgEl, "ok", "已送出");
+
+    // 若原本是「還沒有留言」的 msg，就先清掉
+    if (listEl.querySelector?.(".msg")) listEl.innerHTML = "";
+
+    // 新留言一定是最新的 → 直接 append 在最下面（舊→新排序）
+    listEl.insertAdjacentHTML("beforeend", renderCommentRow(c));
+
+    // 更新數量
+    const p = (postsCache || []).find(x => x.postId === postId);
+    const newTotal = (p?.commentCount ?? 0) + 1;
+    if (p) p.commentCount = newTotal;
+    toggleBtn.textContent = `💬 留言 (${newTotal})`;
+
+    invalidateComments(postId);
+
+  }catch(e){
+    showMsg(msgEl, "err", `送出失敗：${e.message}`);
+  }
+}
+
+function startEditComment(commentId, postId){
+  const item = document.querySelector(`.commentItem[data-comment-id="${commentId}"][data-post-id="${postId}"]`);
+  if (!item) return;
+  const contentEl = item.querySelector(".commentContent");
+  const editEl = item.querySelector(".commentEditArea");
+  if (!contentEl || !editEl) return;
+  contentEl.style.display = "none";
+  editEl.style.display = "block";
+  const ta = editEl.querySelector(".commentEditInput");
+  ta?.focus?.();
+}
+
+function cancelEditComment(commentId, postId){
+  const item = document.querySelector(`.commentItem[data-comment-id="${commentId}"][data-post-id="${postId}"]`);
+  if (!item) return;
+  const contentEl = item.querySelector(".commentContent");
+  const editEl = item.querySelector(".commentEditArea");
+  if (!contentEl || !editEl) return;
+  editEl.style.display = "none";
+  contentEl.style.display = "block";
+}
+
+async function saveEditComment(commentId, postId){
+  const item = document.querySelector(`.commentItem[data-comment-id="${commentId}"][data-post-id="${postId}"]`);
+  if (!item) return;
+  const editEl = item.querySelector(".commentEditArea");
+  const ta = editEl?.querySelector(".commentEditInput");
+  const contentEl = item.querySelector(".commentContent");
+  if (!ta || !contentEl) return;
+
+  const newContent = (ta.value || "").trim();
+  if (!newContent){
+    alert("留言不能空");
+    return;
+  }
+
+  try{
+    const updated = await apiFetch(`${API.comments}/${commentId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ content: newContent }),
+    });
+    contentEl.innerHTML = escapeHtml(updated.content || "").replaceAll("\n", "<br>");
+    cancelEditComment(commentId, postId);
+    invalidateComments(postId);
+  }catch(e){
+    alert(`編輯失敗：${e.message}`);
+  }
+}
+
+let commentsUiInited = false;
+function initCommentsUi(){
+  if (commentsUiInited) return;
+  commentsUiInited = true;
+
+  const feed = $("feed");
+  if (!feed) return;
+
+  feed.addEventListener("click", (e) => {
+    const t = e.target;
+
+    const toggleBtn = t.closest?.(".toggleCommentsBtn");
+    if (toggleBtn){
+      const postId = Number(toggleBtn.dataset.postId);
+      if (postId) toggleComments(postId);
+      return;
+    }
+
+    const sendBtn = t.closest?.(".commentSendBtn");
+    if (sendBtn){
+      const postId = Number(sendBtn.dataset.postId);
+      if (postId) createComment(postId);
+      return;
+    }
+
+    const editBtn = t.closest?.(".commentEditBtn");
+    if (editBtn){
+      const commentId = Number(editBtn.dataset.commentId);
+      const postId = Number(editBtn.dataset.postId);
+      if (commentId && postId) startEditComment(commentId, postId);
+      return;
+    }
+
+    const cancelBtn = t.closest?.(".commentCancelBtn");
+    if (cancelBtn){
+      const commentId = Number(cancelBtn.dataset.commentId);
+      const postId = Number(cancelBtn.dataset.postId);
+      if (commentId && postId) cancelEditComment(commentId, postId);
+      return;
+    }
+
+    const saveBtn = t.closest?.(".commentSaveBtn");
+    if (saveBtn){
+      const commentId = Number(saveBtn.dataset.commentId);
+      const postId = Number(saveBtn.dataset.postId);
+      if (commentId && postId) saveEditComment(commentId, postId);
+      return;
+    }
+  });
 }
 
 /* =========================
@@ -1001,6 +1305,7 @@ function initHome(){
   showPage("home");
   initLikesUi();
   initAuthorHoverUi();
+  initCommentsUi();
 
   updateCharCount();
   bindFilePreview();

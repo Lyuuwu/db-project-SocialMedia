@@ -28,8 +28,10 @@ def make_user_json(row: Tuple[Any, ...]) -> Dict[str, Any]:
     }
 
 def make_post_json(row) -> dict:
-    # row: post_id, picture, content, likes, created_at, author_id, author_name, author_pic, (optional) likedByMe
+    # row: post_id, picture, content, likes, created_at, author_id, author_name, author_pic,
+    #      (optional) likedByMe, (optional) commentCount
     liked = bool(row[8]) if len(row) >= 9 else False
+    comment_count = int(row[9]) if len(row) >= 10 and row[9] is not None else 0
 
     return {
         "postId": int(row[0]),
@@ -43,6 +45,7 @@ def make_post_json(row) -> dict:
         "likes": int(row[3] or 0),
         "createdAt": dt_to_iso(row[4]),
         "likedByMe": liked,
+        "commentCount": comment_count,
     }
     
 def make_like_user_json(row) -> Dict[str, Any]:
@@ -51,4 +54,22 @@ def make_like_user_json(row) -> Dict[str, Any]:
         "userId": int(row[0]),
         "userName": row[1],
         "profilePic": row[2],
+    }
+
+
+def make_comment_json(row) -> Dict[str, Any]:
+    # row: comment_id, post_id, content, created_at, author_id, author_name, author_pic, (optional) editableByMe
+    can_edit = bool(row[7]) if len(row) >= 8 else False
+
+    return {
+        "commentId": int(row[0]),
+        "postId": int(row[1]),
+        "content": row[2],
+        "createdAt": dt_to_iso(row[3]),
+        "author": {
+            "userId": int(row[4]),
+            "userName": row[5],
+            "profilePic": row[6],
+        },
+        "editableByMe": can_edit,
     }

@@ -120,7 +120,7 @@ def users_me_patch():
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))
 
-@bp.get('/<int:user_id>')
+@bp.get('<int:user_id>')
 def users_get(user_id: int):
     try:
         with get_conn() as conn:

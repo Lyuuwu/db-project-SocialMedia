@@ -172,6 +172,52 @@ body{
   color: var(--muted); font-size:12px;
 }
 
+/* comments */
+.commentsWrap{ padding: 0 12px 12px; }
+.commentsPanel{
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  border-radius: 14px;
+  padding: 10px;
+}
+.commentsHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.commentsList{ display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+.commentItem{
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(17,24,39,.28);
+  border-radius: 14px;
+  padding: 10px;
+}
+.commentMeta{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.commentTime{ font-size:11px; color: var(--muted); white-space:nowrap; }
+.commentContent{ margin-top:8px; font-size: 13px; line-height: 1.5; white-space:pre-wrap; word-break:break-word; }
+.commentEditArea{ margin-top: 8px; }
+.commentEditInput{ min-height: 84px; }
+.commentEditActions{ display:flex; gap:10px; justify-content:flex-end; margin-top:8px; }
+.commentComposer{ margin-top: 10px; }
+.commentInput{ min-height: 70px; }
+.commentActions{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-top: 8px; }
+
+.commentAvatar,
+.commentFallback{
+  width:28px;
+  height:28px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  box-shadow: 0 12px 35px rgba(0,0,0,.25);
+  flex:0 0 auto;
+}
+.commentAvatar{ object-fit:cover; display:block; }
+.commentFallback{ display:grid; place-items:center; font-weight:900; color: rgba(255,255,255,.88); }
+
 /* create page */
 .formGrid{
   display:grid;
@@ -332,6 +378,11 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 .btn.small{
   padding:8px 12px;
   font-size:12px;
+}
+
+.btn.tiny{
+  padding:6px 10px;
+  font-size:11px;
 }
 
 .avatarMenu{
