@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import os
 import re
+import uuid
+
+from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
 
 import bcrypt
 import jwt
@@ -73,6 +77,18 @@ def tbl(name: str) -> str:
 
 app = Flask(__name__)
 
+ALLOWED_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+MIME_TO_EXT = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+}
+
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10MB
 
 def get_conn() -> pyodbc.Connection:
     return pyodbc.connect(CONN_STR, timeout=5)
@@ -657,6 +673,44 @@ def unlike_post(post_id: int):
 
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))
+
+# ---------------------------
+# Upload
+# ---------------------------
+
+def allowed_file(filename: str) -> bool:
+    if "." not in filename:
+        return False
+    ext = filename.rsplit(".", 1)[1].lower()
+    return ext in ALLOWED_EXT
+
+@app.post("/api/upload")
+def upload_image():
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return api_error(400, "VALIDATION_ERROR", "No file uploaded.", [{"field": "file", "reason": "required"}])
+
+    # 1) 先從「原始檔名」抓副檔名（中文檔名也沒問題）
+    suffix = Path(f.filename).suffix.lower()  # e.g. ".png"
+    ext = suffix[1:] if suffix.startswith(".") else ""
+
+    # 2) 若抓不到/不合法，再用 mimetype 補
+    if ext not in ALLOWED_EXT:
+        ext = MIME_TO_EXT.get((f.mimetype or "").lower(), "")
+
+    if ext not in ALLOWED_EXT:
+        return api_error(400, "VALIDATION_ERROR", "Unsupported file type.", [{"field": "file", "reason": "invalid_type"}])
+
+    # 3) 用 UUID 存檔，完全避開中文/特殊字元問題
+    new_name = f"{uuid.uuid4().hex}.{ext}"
+    save_path = os.path.join(UPLOAD_DIR, new_name)
+    f.save(save_path)
+
+    return jsonify({"url": f"/uploads/{new_name}"}), 201
+
+@app.get("/uploads/<path:filename>")
+def serve_upload(filename: str):
+    return send_from_directory(UPLOAD_DIR, filename)
 
 
 if __name__ == "__main__":
