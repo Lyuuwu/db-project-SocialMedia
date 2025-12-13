@@ -218,6 +218,7 @@
       font-size:12px;
       color: rgba(255,255,255,.85);
       user-select:none;
+      cursor:pointer;
     }
 
     /* modal */
@@ -375,19 +376,31 @@
             <div class="head" style="border-bottom:1px solid rgba(255,255,255,.10);">
               <div>
                 <h2>發佈貼文</h2>
-                <p>內容＋圖片連結（可選）。送出後會切回 Home。</p>
+                <p>內容＋本機圖片（可選）。送出後會切回 Home。</p>
               </div>
               <div class="badge" id="whoami">未登入（點左上角頭像登入）</div>
             </div>
 
             <div class="body">
+              <!-- ✅ 改成：本機圖片 -->
               <div class="formGrid">
-                <label>圖片 URL</label>
+                <label>圖片</label>
                 <div>
-                  <input id="postPic" maxlength="255" placeholder="https://..." />
+                  <input id="postFile" type="file" accept="image/*" />
                   <div class="miniRow">
-                    <span>可留空（純文字貼文）</span>
-                    <span class="chip" onclick="fillDemo()">填入範例</span>
+                    <span>選擇你裝置中的圖片（可留空）</span>
+                    <span class="chip" onclick="clearPostImage()">清除</span>
+                  </div>
+
+                  <div id="previewBox" style="margin-top:10px; display:none;">
+                    <div class="badge" style="margin-bottom:6px;">圖片預覽</div>
+                    <img id="previewImg"
+                      style="width:100%; max-height:420px; object-fit:cover;
+                            border-radius:14px; border:1px solid rgba(255,255,255,.15);" />
+                  </div>
+
+                  <div class="hint">
+                    發文時會先呼叫 <code>POST /api/upload</code> 上傳圖片，回傳 <code>url</code> 後再建立貼文。
                   </div>
                 </div>
               </div>
@@ -398,7 +411,7 @@
                   <textarea id="postContent" maxlength="500" placeholder="想說些什麼？"></textarea>
                   <div class="miniRow">
                     <span id="charCount">0 / 500</span>
-                    <span class="badge">POST /api/posts</span>
+                    <span class="badge">POST /api/v1/posts</span>
                   </div>
                 </div>
               </div>
@@ -411,15 +424,15 @@
 
               <div id="postMsg" class="msg"></div>
               <div class="hint">
-                使用者不會輸入任何 <code>_id</code>；post_id / user_id 由後端或 DB 產生。<br/>
-                若後端有 token，可回傳並由前端存到 localStorage 自動帶 Authorization。
+                使用者不會輸入任何 <code>_id</code>；postId / userId 由後端或 DB 產生。<br/>
+                若後端有 token，前端會自動帶 <code>Authorization: Bearer &lt;token&gt;</code>。
               </div>
             </div>
           </div>
         </div>
 
         <div class="hint" style="padding:0 2px 0; margin-top:14px;">
-          小提示：若你的後端 time 欄位名稱不是 <code>time</code>（例如 <code>created_at</code>），跟我說我幫你改排序欄位。
+          小提示：若你的時間欄位是 <code>createdAt</code>，我已經用 <code>createdAt || time</code> 兼容。
         </div>
       </div>
     </div>
@@ -459,7 +472,7 @@
           </div>
           <div class="formGrid">
             <label>password</label>
-            <input id="loginPwd" type="password" placeholder="至少 10 字元" maxlength="20" />
+            <input id="loginPwd" type="password" placeholder="至少 6 字元（依你後端規則）" maxlength="64" />
           </div>
           <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <button class="btn primary" onclick="login()">登入</button>
@@ -467,7 +480,7 @@
           </div>
           <div id="authMsg" class="msg"></div>
           <div class="hint">
-            登入：<code>POST /api/login</code> body：<code>{Email, password}</code>
+            登入：<code>POST /api/v1/auth/login</code> body：<code>{email, password}</code>
           </div>
         </div>
 
@@ -475,7 +488,7 @@
         <div id="panelRegister" style="display:none;">
           <div class="formGrid"><label>user_name*</label><input id="regUserName" maxlength="20" placeholder="你的暱稱" /></div>
           <div class="formGrid"><label>Email*</label><input id="regEmail" maxlength="50" placeholder="example@mail.com" /></div>
-          <div class="formGrid"><label>password*</label><input id="regPwd" maxlength="20" type="password" placeholder=">= 10 字元（DB 有 check）" /></div>
+          <div class="formGrid"><label>password*</label><input id="regPwd" maxlength="64" type="password" placeholder="至少 6 字元（依你後端規則）" /></div>
           <div class="formGrid"><label>bio</label><input id="regBio" maxlength="200" placeholder="一句自介（可空）" /></div>
           <div class="formGrid"><label>profile_pic</label><input id="regPic" maxlength="255" placeholder="頭像 URL（可空）" /></div>
 
@@ -486,7 +499,8 @@
 
           <div id="regMsg" class="msg"></div>
           <div class="hint">
-            註冊：<code>POST /api/register</code> body：<code>{user_name, Email, password, bio, profile_pic}</code>
+            註冊：<code>POST /api/v1/auth/register</code> body：<code>{email, password, userName}</code><br/>
+            之後會用 <code>PATCH /api/v1/users/me</code> 更新 bio / profilePic（若有填）。
           </div>
         </div>
       </div>
@@ -495,17 +509,19 @@
 
 <script>
 /** ========= 必改：後端網址 =========
- * ngrok 例：https://abc123.ngrok-free.app
- * 同網段測試例：http://192.168.0.23:5000
+ * 你現在這行 location.origin 在 GitHub Pages 會變成「前端自己的網域」→ 一定連不到你同學後端
+ * 請改成像這樣：
+ *   const BASE_URL = "https://abc123.ngrok-free.app";
  */
-const BASE_URL = location.origin; // ← 改成你同學後端網址
+const BASE_URL = "http://127.0.0.1:5000"; // ← 改成你同學後端（ngrok / 公網 IP）
 
 const API = {
-  ping: "/db_test",                 // GET
-  register: "/api/v1/auth/register",// POST
-  login: "/api/v1/auth/login",      // POST
-  me: "/api/v1/users/me",           // GET/PATCH
-  posts: "/api/v1/posts",           // GET/POST (你後端若尚未做，這裡會失敗但不影響登入註冊)
+  ping: "/db_test",                  // GET
+  register: "/api/v1/auth/register", // POST
+  login: "/api/v1/auth/login",       // POST
+  me: "/api/v1/users/me",            // GET/PATCH
+  posts: "/api/v1/posts",            // GET/POST
+  upload: "/api/upload"              // POST (multipart/form-data) -> { url }
 };
 
 let postsCache = [];
@@ -558,6 +574,7 @@ function setSession(session){
   else localStorage.setItem("miniig_session", JSON.stringify(session));
   syncWhoAmI();
 }
+
 function syncWhoAmI(){
   const s = getSession();
   const u = s?.user;
@@ -593,7 +610,7 @@ function showPage(which){
 
   $("pageTitle").textContent = isHome ? "首頁｜最新貼文" : "發文｜建立新貼文";
   $("pageDesc").textContent = isHome
-    ? "顯示所有貼文，依 time 由新到舊排序。"
+    ? "顯示所有貼文，依 time/createdAt 由新到舊排序。"
     : "在這裡撰寫貼文，送出後回到 Home。";
 }
 
@@ -612,7 +629,6 @@ async function apiFetch(path, options={}){
   try { data = await res.json(); } catch { data = null; }
 
   if (!res.ok){
-    // v1 統一錯誤格式：{ error: { code, message, details } }
     const msg = data?.error?.message || data?.message || `HTTP ${res.status}`;
     throw new Error(msg);
   }
@@ -623,7 +639,7 @@ async function apiFetch(path, options={}){
 async function pingBackend(){
   try{
     const data = await apiFetch(API.ping, { method:"GET" });
-    setApiStatus(true, `後端 OK：${data?.db ?? "db"} / ${data?.login ?? "login"}`);
+    setApiStatus(true, `後端 OK：${data?.db ?? data?.db_name ?? "db"} / ${data?.login ?? data?.login_name ?? "login"}`);
   }catch(e){
     setApiStatus(false, `後端失敗：${e.message}`);
   }
@@ -638,15 +654,11 @@ async function register(){
   const password = $("regPwd").value;
   const userName = $("regUserName").value.trim();
 
-  // 你 UI 還留著 bio/profile_pic，我們註冊後用 PATCH /users/me 更新
   const bio = $("regBio").value.trim();
   const profilePic = $("regPic").value.trim();
 
   if (!email || !password || !userName){
     return showMsg(msg, "err", "必填：email / password / userName");
-  }
-  if (password.length < 6){
-    return showMsg(msg, "err", "password 至少 6 字元");
   }
 
   try{
@@ -655,10 +667,8 @@ async function register(){
       body: JSON.stringify({ email, password, userName })
     });
 
-    // v1：{ accessToken, user }
     setSession({ accessToken: data.accessToken, user: data.user });
 
-    // 若使用者有填 bio/profilePic，註冊後立刻補一個 PATCH
     if (bio || profilePic){
       const patchBody = {};
       if (bio) patchBody.bio = bio;
@@ -669,7 +679,6 @@ async function register(){
         body: JSON.stringify(patchBody),
       });
 
-      // 更新 session user
       setSession({ accessToken: data.accessToken, user: me });
     }
 
@@ -712,11 +721,35 @@ function logout(){
   showMsg($("postMsg"), "ok", "已登出");
 }
 
+/* ====== Image upload + preview ====== */
+function clearPostImage(){
+  const f = $("postFile");
+  if (f) f.value = "";
+  $("previewBox").style.display = "none";
+  $("previewImg").src = "";
+}
+
+$("postFile")?.addEventListener("change", () => {
+  const f = $("postFile").files?.[0];
+  if (!f) return clearPostImage();
+  const url = URL.createObjectURL(f);
+  $("previewImg").src = url;
+  $("previewBox").style.display = "block";
+});
+
 /* posts */
 async function loadPosts(){
   try{
-    const data = await apiFetch(API.posts + "?page=1&pageSize=20", { method:"GET" });
+    const data = await apiFetch(API.posts + "?page=1&pageSize=50", { method:"GET" });
     postsCache = Array.isArray(data) ? data : (data.items || []);
+
+    // ✅ 最新在最上面（createdAt 優先，其次 time）
+    postsCache.sort((a,b)=>{
+      const ta = new Date(a.createdAt || a.time || 0).getTime();
+      const tb = new Date(b.createdAt || b.time || 0).getTime();
+      return tb - ta;
+    });
+
     renderFeed();
     setApiStatus(true, "後端連線正常");
   }catch(e){
@@ -724,25 +757,65 @@ async function loadPosts(){
   }
 }
 
+async function uploadImageIfNeeded(){
+  const s = getSession();
+  const file = $("postFile")?.files?.[0];
+  if (!file) return ""; // 沒選圖片
+
+  const fd = new FormData();
+  fd.append("file", file);
+
+  const url = BASE_URL.replace(/\/$/,"") + API.upload;
+  const headers = {};
+  if (s?.accessToken) headers.Authorization = `Bearer ${s.accessToken}`;
+
+  const res = await fetch(url, { method:"POST", body: fd, headers });
+  let data = null;
+  try { data = await res.json(); } catch { data = null; }
+
+  if (!res.ok){
+    throw new Error(data?.error || data?.message || "圖片上傳失敗");
+  }
+
+  // 期待回：{ url: "/uploads/xxx.jpg" } 或 { url: "https://.../uploads/xxx.jpg" }
+  return data?.url || "";
+}
+
+function normalizeImageUrl(pic){
+  const p = (pic || "").trim();
+  if (!p) return "";
+  if (p.startsWith("http://") || p.startsWith("https://")) return p;
+  // 相對路徑 → 補成後端可讀
+  return BASE_URL.replace(/\/$/,"") + (p.startsWith("/") ? p : ("/" + p));
+}
+
 async function createPost(){
   const msg = $("postMsg");
   showMsg(msg, "", "");
 
-  const u = getSession();
-  if (!u) return showMsg(msg, "err", "請先登入（點左上角頭像）");
+  const s = getSession();
+  if (!s?.accessToken) return showMsg(msg, "err", "請先登入（點左上角頭像）");
 
-  const payload = {
-    content: $("postContent").value.trim(),
-    picture: $("postPic").value.trim(),
-  };
-
-  if (!payload.content) return showMsg(msg, "err", "content 不能空");
+  const content = $("postContent").value.trim();
+  if (!content) return showMsg(msg, "err", "content 不能空");
 
   try{
-    await apiFetch(API.posts, { method:"POST", body: JSON.stringify(payload) });
+    // ① 先上傳圖片（如果有選）
+    showMsg(msg, "", "正在上傳/送出...");
+    const pictureUrl = await uploadImageIfNeeded();
+
+    // ② 建立貼文
+    await apiFetch(API.posts, {
+      method:"POST",
+      body: JSON.stringify({
+        content,
+        picture: pictureUrl
+      })
+    });
+
     showMsg(msg, "ok", "發佈成功！");
     $("postContent").value = "";
-    $("postPic").value = "";
+    clearPostImage();
     updateCharCount();
     showPage("home");
     await loadPosts();
@@ -798,7 +871,7 @@ function renderFeed(){
     card.appendChild(meta);
     card.appendChild(body);
 
-    const pic = (p.picture || "").trim();
+    const pic = normalizeImageUrl(p.picture || "");
     if (pic){
       const imgWrap = document.createElement("div");
       imgWrap.className = "imgWrap";
@@ -808,52 +881,22 @@ function renderFeed(){
 
     const footer = document.createElement("div");
     footer.className = "footerBar";
-    const postId = p.postId;
-    const heart = p.likedByMe ? "♥" : "♡";
-    footer.innerHTML = `
-      <span>likes: ${likes}</span>
-      <span style="display:flex; gap:8px; align-items:center;">
-        <button class="btn ghost" onclick="toggleLike(${postId})">${heart} Like</button>
-        <span class="badge">from API</span>
-      </span>
-    `;
+    footer.innerHTML = `<span>likes: ${likes}</span><span class="badge">from API</span>`;
     card.appendChild(footer);
 
     feed.appendChild(card);
   });
 }
 
-async function toggleLike(postId){
-  const s = getSession();
-  if (!s?.accessToken){
-    openAuth();
-    return;
-  }
-
-  const p = (postsCache || []).find(x => x.postId === postId);
-  if (!p) return;
-
-  const path = `${API.posts}/${postId}/like`;
-
-  try{
-    const data = await apiFetch(path, { method: p.likedByMe ? "DELETE" : "POST" });
-    p.likedByMe = !!data.liked;
-    p.likes = data.likes ?? p.likes;
-    renderFeed();
-  }catch(e){
-    setApiStatus(false, `更新 like 失敗：${e.message}`);
-  }
-}
-
 /* helpers */
 function fillDemo(){
-  const u = getSession();
-  if (!u){
+  const s = getSession();
+  if (!s?.accessToken){
     showMsg($("postMsg"), "err", "先登入（點左上角頭像）");
     return;
   }
-  $("postPic").value = "https://images.unsplash.com/photo-1520975682031-a4a2c1a53497?auto=format&fit=crop&w=1200&q=60";
-  $("postContent").value = `今天 demo 很順！\n— ${u.userName || u.Email}`;
+  $("postContent").value = `今天 demo 很順！\n— ${s.user?.userName || s.user?.email}`;
+  clearPostImage();
   updateCharCount();
 }
 
