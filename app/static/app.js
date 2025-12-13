@@ -1,5 +1,5 @@
-/** ========= 必改：後端網址 ========= */
-const BASE_URL = "https://snufflingly-subuncinate-rosario.ngrok-free.dev/"; // 後端 base
+// const BASE_URL = "https://snufflingly-subuncinate-rosario.ngrok-free.dev/"; // 後端 base
+BASE_URL = location.origin
 const AUTH_PAGE_URL = "/static/auth.html"; // Flask 靜態頁面路徑（需要就改）
 
 const API = {
@@ -7,12 +7,36 @@ const API = {
   register: "/api/v1/auth/register",
   login: "/api/v1/auth/login",
   me: "/api/v1/users/me",
+  users: "/api/v1/users",
   posts: "/api/v1/posts",
   upload: "/api/upload"
 };
 
 let postsCache = [];
 const $ = (id) => document.getElementById(id);
+
+// hover 顯示最多幾個人（改 5 / 10 都可以）
+const LIKES_HOVER_LIMIT = 8;
+
+// 如果你本來就有 tooltip 狀態，就把這兩個變數對應到你的即可
+// ✅ 每篇貼文 likes 名單的版本號：避免舊 request 回來把舊資料塞回快取
+const likesPreviewVer = new Map(); // postId -> integer
+
+function bumpLikesPreviewVer(postId){
+  likesPreviewVer.set(postId, (likesPreviewVer.get(postId) || 0) + 1);
+}
+
+// ✅ 核心：清掉某篇貼文的 hover 名單快取，避免顯示舊資料
+function invalidateLikesPreview(postId){
+  likesPreviewCache.delete(postId);
+  bumpLikesPreviewVer(postId);
+
+  // 如果 popover 正在顯示這篇貼文的名單，直接關掉（避免畫面顯示舊資料）
+  if (typeof activeLikesPostId !== "undefined" && activeLikesPostId === postId){
+    hideLikesPopover();
+  }
+}
+
 
 function showMsg(el, type, text){
   if (!el) return;
@@ -346,6 +370,12 @@ async function loadPosts(){
       return tb - ta;
     });
 
+    // ✅ 建議：整批更新後把 hover 快取清掉
+    likesPreviewCache.clear();
+    likesHoverState = { postId: null, isOpen: false };
+    hideLikesPopover(); // ✅ 你有這個
+
+
     renderFeed();
     setApiStatus(true, "後端連線正常");
   }catch(e){
@@ -462,11 +492,21 @@ async function fetchLikesPreview(postId){
   const cached = likesPreviewCache.get(postId);
   if (cached && (now - cached.ts) < LIKES_PREVIEW_CACHE_MS) return cached.data;
 
+  // 送出 request 前，先記住當下版本
+  const ver = likesPreviewVer.get(postId) || 0;
+
   const qs = new URLSearchParams({ limit: String(LIKES_PREVIEW_LIMIT) });
   const data = await apiFetch(`${API.posts}/${postId}/likes?${qs.toString()}`);
-  likesPreviewCache.set(postId, { ts: now, data });
+
+  // 如果 request 飛行途中被 invalidate（ver 變了），就不要把舊資料寫進快取
+  if ((likesPreviewVer.get(postId) || 0) !== ver){
+    return data; // 仍回傳給呼叫者，但不快取
+  }
+
+  likesPreviewCache.set(postId, { ts: Date.now(), data });
   return data;
 }
+
 
 async function fetchLikesPage(postId, page){
   const qs = new URLSearchParams({
@@ -486,6 +526,8 @@ function renderLikeUserRow(u){
   return `<div class="likeRow">${avatar}<div class="likeName">${name}</div></div>`;
 }
 
+let likesPreviewReqSeq = 0;
+
 async function showLikesPreview(anchorEl){
   const postId = Number(anchorEl.dataset.postId);
   if (!postId) return;
@@ -503,8 +545,16 @@ async function showLikesPreview(anchorEl){
   pop.querySelector(".likesPopoverTitle").textContent = "載入中…";
   pop.querySelector(".likesPopoverList").innerHTML = "";
 
+  // ✅ 這次顯示的 request id
+  const reqId = ++likesPreviewReqSeq;
+
   try{
     const data = await fetchLikesPreview(postId);
+
+    // ✅ 如果途中又觸發其他 hover / 或 popover 已切到別篇，就不要用舊結果覆蓋 UI
+    if (reqId !== likesPreviewReqSeq) return;
+    if (activeLikesPostId !== postId) return;
+
     const items = data.items || [];
     const total = data.total ?? items.length;
 
@@ -520,8 +570,12 @@ async function showLikesPreview(anchorEl){
       );
     }
   }catch(e){
+    if (reqId !== likesPreviewReqSeq) return;
+    if (activeLikesPostId !== postId) return;
+
     pop.querySelector(".likesPopoverTitle").textContent = "讀取失敗";
-    pop.querySelector(".likesPopoverList").innerHTML = `<div class="msg" style="display:block;">${escapeHtml(e.message)}</div>`;
+    pop.querySelector(".likesPopoverList").innerHTML =
+      `<div class="msg" style="display:block;">${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -656,19 +710,32 @@ function renderFeed(){
     const card = document.createElement("div");
     card.className = "postCard";
 
-    const authorName = escapeHtml(p.author?.userName || p.user_name || "unknown");
-    const authorEmail = escapeHtml(p.author?.email || p.Email || "");
     const t = fmtTime(p.createdAt || p.time);
     const likes = (p.likes ?? 0);
 
     const meta = document.createElement("div");
     meta.className = "postMeta";
+    const author = p.author || {};
+    const authorId = Number(author.userId || 0);
+    const authorRawName = author.userName || p.user_name || "unknown";
+    const authorName = escapeHtml(authorRawName);
+    const authorEmail = escapeHtml(author.email || p.Email || ""); // 有的話才會顯示
+    const authorPic = normalizeBackendUrl(author.profilePic || "");
+    const authorInitial = firstLetter(authorRawName);
+
+    const authorAvatarHtml = authorPic
+    ? `<img class="authorAvatar" src="${escapeHtml(authorPic)}" alt="avatar" />`
+    : `<div class="authorFallback">${escapeHtml(authorInitial)}</div>`;
+
     meta.innerHTML = `
-      <div class="nameLine">
+    <div class="nameLine">
+        <span class="authorChip" data-user-id="${authorId}" data-user-name="${escapeHtml(authorRawName)}">
+        ${authorAvatarHtml}
         <b>${authorName}</b>
+        </span>
         ${authorEmail ? `<span class="badge">${authorEmail}</span>` : ""}
-      </div>
-      <div class="time">${t}</div>
+    </div>
+    <div class="time">${t}</div>
     `;
 
     const body = document.createElement("div");
@@ -704,25 +771,219 @@ function renderFeed(){
 }
 
 async function toggleLike(postId){
-  const s = getSession();
-  if (!s?.accessToken){
-    goToAuth();
-    return;
-  }
+    const s = getSession();
+    if (!s?.accessToken){
+        goToAuth();
+        return;
+    }
 
-  const p = (postsCache || []).find(x => x.postId === postId);
-  if (!p) return;
 
-  const path = `${API.posts}/${postId}/like`;
+    const p = (postsCache || []).find(x => x.postId === postId);
+    if (!p) return;
 
-  try{
+    const path = `${API.posts}/${postId}/like`;
+
+    try{
     const data = await apiFetch(path, { method: p.likedByMe ? "DELETE" : "POST" });
+
+    // 更新數字與愛心狀態
     p.likedByMe = !!data.liked;
     p.likes = data.likes ?? p.likes;
+
+    // ✅ 關鍵：清掉 hover 名單快取，避免顯示舊資料
+    invalidateLikesPreview(postId);
+
+    // 重新渲染畫面
     renderFeed();
-  }catch(e){
+    }catch(e){
     setApiStatus(false, `更新 like 失敗：${e.message}`);
+    }
+}
+
+/* =========================
+   User popover (for post author)
+   ========================= */
+const USER_PREVIEW_CACHE_MS = 30000;
+const userPreviewCache = new Map(); // userId -> {ts, data}
+
+let userPopoverEl = null;
+let userHideTimer = null;
+let activeUserAnchor = null;
+let activeUserId = null;
+let userReqSeq = 0;
+
+function firstLetter(str){
+  const s = String(str || "").trim();
+  return (s ? s[0] : "U").toUpperCase();
+}
+
+function ensureUserPopover(){
+  if (userPopoverEl) return userPopoverEl;
+
+  userPopoverEl = document.createElement("div");
+  userPopoverEl.className = "userPopover";
+  userPopoverEl.id = "userPopover";
+  userPopoverEl.innerHTML = `
+    <div class="userPopoverTop">
+      <div class="userPopFallback">U</div>
+      <div class="userPopMeta">
+        <div class="name">載入中…</div>
+        <div class="email"></div>
+      </div>
+    </div>
+    <div class="userPopBio"></div>
+    <div class="userPopHint"></div>
+  `;
+  document.body.appendChild(userPopoverEl);
+
+  userPopoverEl.addEventListener("pointerenter", () => {
+    if (userHideTimer) clearTimeout(userHideTimer);
+    userHideTimer = null;
+  });
+  userPopoverEl.addEventListener("pointerleave", () => scheduleHideUserPopover());
+
+  window.addEventListener("scroll", () => {
+    if (userPopoverEl?.classList.contains("show") && activeUserAnchor){
+      positionUserPopover(activeUserAnchor);
+    }
+  }, true);
+  window.addEventListener("resize", () => {
+    if (userPopoverEl?.classList.contains("show") && activeUserAnchor){
+      positionUserPopover(activeUserAnchor);
+    }
+  });
+
+  return userPopoverEl;
+}
+
+function scheduleHideUserPopover(){
+  if (userHideTimer) clearTimeout(userHideTimer);
+  userHideTimer = setTimeout(() => hideUserPopover(), 120);
+}
+
+function hideUserPopover(){
+  if (!userPopoverEl) return;
+  userPopoverEl.classList.remove("show");
+  activeUserAnchor = null;
+  activeUserId = null;
+}
+
+function positionUserPopover(anchor){
+  const pop = ensureUserPopover();
+  const rect = anchor.getBoundingClientRect();
+
+  const gap = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  const popW = 300;
+  const popH = pop.offsetHeight || 160;
+
+  // 預設放下方，不夠就放上方
+  let top = rect.bottom + gap;
+  if (top + popH > vh - 10){
+    top = rect.top - gap - popH;
   }
+  top = Math.max(10, Math.min(top, vh - popH - 10));
+
+  let left = rect.left;
+  if (left + popW > vw - 10) left = vw - popW - 10;
+  if (left < 10) left = 10;
+
+  pop.style.top = `${top}px`;
+  pop.style.left = `${left}px`;
+}
+
+async function fetchUserPreview(userId){
+  const now = Date.now();
+  const cached = userPreviewCache.get(userId);
+  if (cached && (now - cached.ts) < USER_PREVIEW_CACHE_MS) return cached.data;
+
+  const data = await apiFetch(`${API.users}/${userId}`, { method: "GET" });
+  userPreviewCache.set(userId, { ts: now, data });
+  return data;
+}
+
+function renderUserPopover(u){
+  const pop = ensureUserPopover();
+
+  const name = escapeHtml(u?.userName || "unknown");
+  const email = escapeHtml(u?.email || "");
+  const bio = escapeHtml(u?.bio || "");
+
+  const pic = normalizeBackendUrl(u?.profilePic || "");
+  const avatarHtml = pic
+    ? `<img class="userPopAvatar" src="${escapeHtml(pic)}" alt="avatar" />`
+    : `<div class="userPopFallback">${escapeHtml(firstLetter(u?.userName || u?.email || "U"))}</div>`;
+
+  pop.querySelector(".userPopoverTop").innerHTML = `
+    ${avatarHtml}
+    <div class="userPopMeta">
+      <div class="name">${name}</div>
+      <div class="email">${email}</div>
+    </div>
+  `;
+
+  pop.querySelector(".userPopBio").textContent = bio ? bio : "";
+  pop.querySelector(".userPopHint").textContent = bio ? "" : "（沒有 bio）";
+}
+
+async function showUserPopover(anchorEl){
+  const userId = Number(anchorEl.dataset.userId);
+  if (!userId) return;
+
+  const pop = ensureUserPopover();
+
+  if (userHideTimer) clearTimeout(userHideTimer);
+  userHideTimer = null;
+
+  activeUserAnchor = anchorEl;
+  activeUserId = userId;
+
+  positionUserPopover(anchorEl);
+  pop.classList.add("show");
+
+  // loading
+  pop.querySelector(".userPopoverTop").innerHTML = `
+    <div class="userPopFallback">${escapeHtml(firstLetter(anchorEl.dataset.userName || "U"))}</div>
+    <div class="userPopMeta">
+      <div class="name">載入中…</div>
+      <div class="email"></div>
+    </div>
+  `;
+  pop.querySelector(".userPopBio").textContent = "";
+  pop.querySelector(".userPopHint").textContent = "";
+
+  const seq = ++userReqSeq;
+  try{
+    const data = await fetchUserPreview(userId);
+    if (seq !== userReqSeq) return; // 避免 race condition
+    renderUserPopover(data);
+  }catch(e){
+    if (seq !== userReqSeq) return;
+    pop.querySelector(".userPopHint").textContent = `讀取失敗：${e.message}`;
+  }
+}
+
+function initAuthorHoverUi(){
+  const feed = $("feed");
+  if (!feed) return;
+
+  feed.addEventListener("pointerover", (e) => {
+    const chip = e.target.closest?.(".authorChip");
+    if (!chip) return;
+    showUserPopover(chip);
+  });
+
+  feed.addEventListener("pointerout", (e) => {
+    const chip = e.target.closest?.(".authorChip");
+    if (!chip) return;
+
+    const rt = e.relatedTarget;
+    if (rt && userPopoverEl && userPopoverEl.contains(rt)) return;
+
+    scheduleHideUserPopover();
+  });
 }
 
 /* helpers */
@@ -739,7 +1000,8 @@ function initHome(){
 
   showPage("home");
   initLikesUi();
-  
+  initAuthorHoverUi();
+
   updateCharCount();
   bindFilePreview();
 
