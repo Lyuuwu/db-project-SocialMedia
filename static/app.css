@@ -314,3 +314,147 @@ input::placeholder, textarea::placeholder{ color: rgba(255,255,255,.35); }
 }
 
 code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 11px; }
+
+/* ===== account (top-right) ===== */
+.rightTop{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.accountArea{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  position:relative;
+}
+
+.btn.small{
+  padding:8px 12px;
+  font-size:12px;
+}
+
+.avatarMenu{
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  cursor:pointer;
+  user-select:none;
+
+  /* 新增：把 hover 區域往下撐出來（要 >= 你 popover 的間距） */
+  padding-bottom: 14px;
+}
+
+/* ✅ 點一下固定打開（hover 或 open 都能顯示） */
+.avatarMenu.open .avatarPopover{
+  opacity: 1;
+  transform: translateY(10px);
+  pointer-events: auto;
+}
+
+.avatarImg,
+.avatarFallback{
+  width:40px;
+  height:40px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  box-shadow: 0 18px 45px rgba(0,0,0,.25);
+  backdrop-filter: blur(10px);
+}
+
+.avatarImg{
+  object-fit:cover;
+  display:none;
+}
+
+.avatarFallback{
+  display:grid;
+  place-items:center;
+  font-weight:900;
+  color: rgba(255,255,255,.88);
+}
+
+.avatarPopover{
+  position:absolute;
+  top: 100%;
+  right: 0;
+  width: 280px;
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(17,24,39,.80);
+  backdrop-filter: blur(14px);
+  border-radius: 16px;
+  box-shadow: 0 20px 80px rgba(0,0,0,.45);
+  padding: 12px;
+  z-index: 999; /* 確保在最上層，避免被蓋住 */
+
+  /* 用 transform 做視覺上的間距（但 hover 區域靠 padding-bottom 撐住） */
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity .15s ease, transform .15s ease;
+}
+
+/* ✅ 透明橋接：覆蓋頭像到 popover 之間的「斜向路徑」 */
+.avatarPopover::before{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  top:-16px;     /* 視覺間距是 translateY(10px)，這裡抓大一點更保險 */
+  height:16px;
+  background: transparent;
+}
+
+
+.avatarMenu:hover .avatarPopover{
+  opacity: 1;
+  transform: translateY(10px);
+  pointer-events: auto;
+}
+
+.popHeader{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  margin-bottom:10px;
+}
+
+.popName{
+  font-weight:900;
+  font-size:13px;
+  color: rgba(255,255,255,.92);
+}
+
+.popEmail{
+  font-size:12px;
+  color: rgba(255,255,255,.65);
+  word-break: break-word;
+}
+
+.popBio{
+  font-size:12px;
+  color: rgba(255,255,255,.75);
+  line-height:1.45;
+  white-space:pre-wrap;
+  word-break:break-word;
+  margin-bottom: 12px;
+  min-height: 0;
+}
+
+.popActions{
+  display:flex;
+  justify-content:flex-end;
+}
+
+/* ===== auth page layout ===== */
+.authCard{
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.authTabs{
+  padding: 0;
+  margin-top: 6px;
+}

@@ -1,4 +1,3 @@
-<!-- static/index.html -->
 <!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -10,30 +9,45 @@
   <script src="/static/app.js" defer></script>
 </head>
 
-<body>
+<body data-page="home">
   <div class="wrap">
     <div class="topbar">
-      <div class="leftTop">
-        <div class="avatarBtn" id="authBtn" title="登入 / 註冊">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M20 21a8 8 0 0 0-16 0" stroke="rgba(255,255,255,.88)" stroke-width="2" stroke-linecap="round"/>
-            <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="rgba(255,255,255,.88)" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <div class="loginDot" id="loginDot" title="登入狀態"></div>
-
-        <div class="brand">
-          <div class="logo">MI</div>
-          <div>
-            <h1>Mini IG Demo</h1>
-            <p>Home 看最新貼文 | Create 發文 | 登入/註冊彈窗</p>
-          </div>
+      <div class="brand">
+        <div class="logo">MI</div>
+        <div>
+          <h1>Mini IG Demo</h1>
+          <p>Home 看最新貼文 | Create 發文</p>
         </div>
       </div>
 
-      <div class="statusPill">
-        <div id="apiDot" class="dot"></div>
-        <span id="apiText">尚未測試後端連線</span>
+      <div class="rightTop">
+        <div class="statusPill">
+          <div id="apiDot" class="dot"></div>
+          <span id="apiText">尚未測試後端連線</span>
+        </div>
+
+        <!-- ✅ 右上角帳號區 -->
+        <div class="accountArea" id="accountArea">
+          <!-- 未登入：顯示按鈕 -->
+          <button id="loginNavBtn" class="btn primary small" onclick="goToAuth()">登入 / 註冊</button>
+
+          <!-- 已登入：顯示頭像 + hover popover -->
+          <div id="avatarMenu" class="avatarMenu" style="display:none;">
+            <img id="avatarImg" class="avatarImg" alt="avatar" />
+            <div id="avatarFallback" class="avatarFallback" aria-hidden="true">U</div>
+
+            <div class="avatarPopover">
+              <div class="popHeader">
+                <div class="popName" id="popName">—</div>
+                <div class="popEmail" id="popEmail">—</div>
+              </div>
+              <div class="popBio" id="popBio"></div>
+              <div class="popActions">
+                <button class="btn danger small" onclick="logout()">登出</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -41,7 +55,7 @@
       <div class="head">
         <div>
           <h2 id="pageTitle">首頁｜最新貼文</h2>
-          <p id="pageDesc">顯示所有貼文，依 time 由新到舊排序。</p>
+          <p id="pageDesc">顯示所有貼文，依 time/createdAt 由新到舊排序。</p>
         </div>
         <div class="feedControls">
           <input id="search" class="search" placeholder="搜尋（content / user_name / Email）" oninput="renderFeed()" />
@@ -64,11 +78,10 @@
                 <h2>發佈貼文</h2>
                 <p>內容＋本機圖片（可選）。送出後會切回 Home。</p>
               </div>
-              <div class="badge" id="whoami">未登入（點左上角頭像登入）</div>
+              <div class="badge" id="whoami">未登入</div>
             </div>
 
             <div class="body">
-              <!-- ✅ 本機圖片 -->
               <div class="formGrid">
                 <label>圖片</label>
                 <div>
@@ -105,14 +118,9 @@
               <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
                 <button class="btn primary" onclick="createPost()">發佈</button>
                 <button class="btn ghost" onclick="showPage('home')">回到首頁</button>
-                <button class="btn danger" onclick="logout()">登出</button>
               </div>
 
               <div id="postMsg" class="msg"></div>
-              <div class="hint">
-                使用者不會輸入任何 <code>_id</code>；postId / userId 由後端或 DB 產生。<br/>
-                若後端有 token，前端會自動帶 <code>Authorization: Bearer &lt;token&gt;</code>。
-              </div>
             </div>
           </div>
         </div>
@@ -128,69 +136,6 @@
   <div class="bottomNav">
     <button class="navItem active" id="navHome" onclick="showPage('home')">🏠 <span>Home</span></button>
     <button class="navItem" id="navCreate" onclick="showPage('create')">➕ <span>Create</span></button>
-  </div>
-
-  <!-- Auth Modal -->
-  <div id="overlay" class="overlay" onclick="overlayClick(event)">
-    <div class="modal" role="dialog" aria-modal="true" aria-label="登入註冊">
-      <div class="modalTop">
-        <div class="title">
-          <div class="miniLogo">MI</div>
-          <div>
-            <div style="font-weight:900; font-size:13px;">登入 / 註冊</div>
-            <div style="font-size:12px; color:var(--muted);">使用者不輸入任何 _id</div>
-          </div>
-        </div>
-        <button class="closeBtn" onclick="closeAuth()">關閉</button>
-      </div>
-
-      <div class="tabs">
-        <div id="tabLogin" class="tab active" onclick="uiSetTab('login')">登入</div>
-        <div id="tabRegister" class="tab" onclick="uiSetTab('register')">註冊</div>
-      </div>
-
-      <div class="modalBody">
-        <!-- LOGIN -->
-        <div id="panelLogin">
-          <div class="formGrid">
-            <label>Email</label>
-            <input id="loginEmail" placeholder="example@mail.com" />
-          </div>
-          <div class="formGrid">
-            <label>password</label>
-            <input id="loginPwd" type="password" placeholder="至少 6 字元（依你後端規則）" maxlength="64" />
-          </div>
-          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-            <button class="btn primary" onclick="login()">登入</button>
-            <button class="btn" onclick="pingBackend()">測試後端</button>
-          </div>
-          <div id="authMsg" class="msg"></div>
-          <div class="hint">
-            登入：<code>POST /api/v1/auth/login</code> body：<code>{email, password}</code>
-          </div>
-        </div>
-
-        <!-- REGISTER -->
-        <div id="panelRegister" style="display:none;">
-          <div class="formGrid"><label>user_name*</label><input id="regUserName" maxlength="20" placeholder="你的暱稱" /></div>
-          <div class="formGrid"><label>Email*</label><input id="regEmail" maxlength="50" placeholder="example@mail.com" /></div>
-          <div class="formGrid"><label>password*</label><input id="regPwd" maxlength="64" type="password" placeholder="至少 6 字元（依你後端規則）" /></div>
-          <div class="formGrid"><label>bio</label><input id="regBio" maxlength="200" placeholder="一句自介（可空）" /></div>
-          <div class="formGrid"><label>profile_pic</label><input id="regPic" maxlength="255" placeholder="頭像 URL（可空）" /></div>
-
-          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-            <button class="btn primary" onclick="register()">註冊</button>
-            <button class="btn" onclick="pingBackend()">測試後端</button>
-          </div>
-
-          <div id="regMsg" class="msg"></div>
-          <div class="hint">
-            註冊：<code>POST /api/v1/auth/register</code> body：<code>{email, password, userName}</code><br/>
-            之後會用 <code>PATCH /api/v1/users/me</code> 更新 bio / profilePic（若有填）。
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </body>
 </html>

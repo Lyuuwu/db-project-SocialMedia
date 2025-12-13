@@ -23,7 +23,7 @@ create table post(
 	user_id		int not null,
 	picture		nvarchar(1024) null,
 	content		nvarchar(2048) not null,
-	create_time datetime2(0) not null constraint DF_post_created_time default (sysdatetime()),
+	created_at datetime2(0) not null constraint DF_post_created_time default (sysdatetime()),
 	likes		int not null constraint DF_likes_num default 0,
 
 	constraint PK_post primary key (post_id),
@@ -54,7 +54,7 @@ create table comment(
 	comment_id	int identity(1, 1) not null,
 	post_id		int not null,
 	content		nvarchar(1024),
-	create_time datetime2(0) not null constraint DF_comment_time default (sysdatetime()),
+	created_at datetime2(0) not null constraint DF_comment_time default (sysdatetime()),
 
 	constraint PK_comment primary key (comment_id),
 	constraint FK_comment_user foreign key (user_id) references users(user_id) on delete no action,
