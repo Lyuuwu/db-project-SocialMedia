@@ -4,16 +4,21 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Mini IG Demo</title>
+
   <style>
     :root{
       --bg1:#0b1020; --bg2:#111827;
+      --glass1: rgba(255,255,255,.11);
+      --glass2: rgba(255,255,255,.06);
       --stroke: rgba(255,255,255,.16);
+      --stroke2: rgba(255,255,255,.10);
       --text: rgba(255,255,255,.92);
       --muted: rgba(255,255,255,.65);
       --brand: #60a5fa; --brand2:#a78bfa;
       --ok:#34d399; --err:#fb7185;
       --shadow: 0 18px 70px rgba(0,0,0,.45);
-      --r: 18px; --r2: 12px;
+      --shadow2: 0 12px 35px rgba(0,0,0,.35);
+      --r: 18px; --r2: 14px;
     }
     *{ box-sizing:border-box; }
     body{
@@ -25,43 +30,38 @@
         radial-gradient(900px 600px at 55% 110%, rgba(52,211,153,.10), transparent 60%),
         linear-gradient(135deg, var(--bg1), var(--bg2));
     }
-    .wrap{ max-width:1100px; margin:0 auto; padding:18px 16px 60px; }
+    .wrap{ max-width:1100px; margin:0 auto; padding:18px 16px 90px; }
 
-    /* Topbar */
+    /* top */
     .topbar{
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-      margin-bottom:16px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; margin-bottom:16px;
     }
-    .leftTop{ display:flex; align-items:center; gap:10px; }
+    .leftTop{ display:flex; align-items:center; gap:12px; }
     .avatarBtn{
       width:40px; height:40px; border-radius:999px;
       border:1px solid rgba(255,255,255,.18);
       background: rgba(255,255,255,.06);
       display:grid; place-items:center;
-      cursor:pointer;
+      cursor:pointer; user-select:none;
       box-shadow: 0 18px 45px rgba(0,0,0,.25);
       backdrop-filter: blur(10px);
-      user-select:none;
     }
     .avatarBtn:hover{ background: rgba(255,255,255,.10); }
-    .avatarDot{
+    .loginDot{
       width:10px; height:10px; border-radius:999px;
       background: rgba(255,255,255,.25);
       box-shadow: inset 0 0 0 1px rgba(255,255,255,.22);
-      margin-left:6px;
     }
-    .avatarDot.ok{ background: rgba(52,211,153,.9); }
-    .avatarDot.err{ background: rgba(251,113,133,.9); }
-    .brand{
-      display:flex; align-items:center; gap:10px;
-      user-select:none;
-    }
+    .loginDot.ok{ background: rgba(52,211,153,.9); }
+    .loginDot.err{ background: rgba(251,113,133,.9); }
+
+    .brand{ display:flex; align-items:center; gap:10px; user-select:none; }
     .logo{
       width:42px; height:42px; border-radius:14px;
       background: linear-gradient(135deg, rgba(96,165,250,.95), rgba(167,139,250,.95));
       box-shadow: 0 18px 45px rgba(96,165,250,.18);
-      display:grid; place-items:center;
-      font-weight:900;
+      display:grid; place-items:center; font-weight:900;
     }
     .brand h1{ margin:0; font-size:16px; line-height:1.1; }
     .brand p{ margin:4px 0 0; font-size:12px; color:var(--muted); }
@@ -76,55 +76,47 @@
     .dot{ width:10px; height:10px; border-radius:999px; background:rgba(255,255,255,.25); }
     .dot.ok{ background: rgba(52,211,153,.9); }
     .dot.err{ background: rgba(251,113,133,.9); }
-    .statusPill span{ font-size:12px; color:var(--muted); }
+    .statusPill span{ font-size:12px; color:var(--muted); white-space:nowrap; }
 
-    /* Layout (only main feed now) */
-    .grid{ display:grid; grid-template-columns: 1fr; gap:16px; }
-
+    /* cards */
     .card{
       border:1px solid var(--stroke);
-      background: linear-gradient(180deg, rgba(255,255,255,.11), rgba(255,255,255,.06));
+      background: linear-gradient(180deg, var(--glass1), var(--glass2));
       border-radius: var(--r);
       box-shadow: var(--shadow);
       overflow:hidden;
     }
     .head{
       padding:16px 16px 10px;
-      border-bottom:1px solid rgba(255,255,255,.10);
+      border-bottom:1px solid var(--stroke2);
       display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
     }
     .head h2{ margin:0; font-size:13px; letter-spacing:.3px; }
     .head p{ margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.35; }
     .body{ padding:14px 16px 16px; }
 
-    .row{
-      display:grid;
-      grid-template-columns: 120px 1fr;
-      gap:10px; align-items:center;
-      margin:10px 0;
-    }
-    .row label{ font-size:12px; color:var(--muted); }
-    input, textarea{
-      width:100%;
-      border-radius: 12px;
+    .feedControls{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .search{
+      flex:1; min-width:220px;
+      border-radius: 999px;
       border:1px solid rgba(255,255,255,.16);
       background: rgba(17,24,39,.35);
       color: var(--text);
       padding:10px 12px;
       outline:none;
     }
-    textarea{ min-height: 92px; resize: vertical; }
-    input::placeholder, textarea::placeholder{ color: rgba(255,255,255,.35); }
+    .search::placeholder{ color: rgba(255,255,255,.35); }
 
-    .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
     .btn{
       border:none; border-radius: 999px;
       padding:10px 14px; cursor:pointer;
-      font-weight:700; font-size:12px; letter-spacing:.2px;
+      font-weight:800; font-size:12px; letter-spacing:.2px;
       color:rgba(255,255,255,.95);
       background: rgba(255,255,255,.10);
       border:1px solid rgba(255,255,255,.18);
+      user-select:none;
     }
+    .btn:hover{ background: rgba(255,255,255,.14); }
     .btn.primary{
       background: linear-gradient(135deg, rgba(96,165,250,.95), rgba(167,139,250,.90));
       border: none;
@@ -135,7 +127,7 @@
       background: rgba(251,113,133,.15);
       border-color: rgba(251,113,133,.35);
     }
-    .hint{ margin-top:10px; font-size:12px; color:var(--muted); line-height:1.45; }
+
     .msg{
       margin-top:10px; padding:10px 12px;
       border-radius: 12px;
@@ -148,8 +140,22 @@
     .msg.ok{ border-color: rgba(52,211,153,.35); background: rgba(52,211,153,.10); color: rgba(255,255,255,.88); }
     .msg.err{ border-color: rgba(251,113,133,.35); background: rgba(251,113,133,.10); color: rgba(255,255,255,.88); }
 
-    .feedControls{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    .search{ flex:1; min-width:160px; }
+    .hint{ margin-top:10px; font-size:12px; color:var(--muted); line-height:1.45; }
+
+    /* feed */
+    .feed{ display:flex; flex-direction:column; gap:12px; padding:14px 16px 18px; }
+    .postCard{
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      border-radius: var(--r2);
+      overflow:hidden;
+      box-shadow: var(--shadow2);
+    }
+    .postMeta{
+      padding:12px 12px 0;
+      display:flex; justify-content:space-between; gap:10px;
+    }
+    .nameLine{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; }
     .badge{
       padding:3px 8px; border-radius: 999px;
       border:1px solid rgba(255,255,255,.16);
@@ -157,36 +163,64 @@
       color: var(--muted);
       font-size: 11px;
     }
-    .feed{ display:flex; flex-direction:column; gap:12px; padding:14px 16px 18px; }
-    .postCard{
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(255,255,255,.06);
-      border-radius: var(--r2);
-      overflow:hidden;
-    }
-    .postMeta{
-      padding:12px 12px 0;
-      display:flex; justify-content:space-between; gap:10px;
-    }
-    .nameLine{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; }
     .time{ font-size:11px; color: var(--muted); white-space:nowrap; }
     .postBody{
       padding:10px 12px 12px;
-      color: rgba(255,255,255,.88);
-      font-size:13px; line-height:1.45;
+      color: rgba(255,255,255,.90);
+      font-size:13px; line-height:1.55;
       white-space:pre-wrap; word-break:break-word;
     }
     .imgWrap{ border-top:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.12); }
-    .imgWrap img{ width:100%; display:block; max-height: 420px; object-fit: cover; }
+    .imgWrap img{ width:100%; display:block; max-height: 460px; object-fit: cover; }
     .footerBar{
       display:flex; justify-content:space-between; align-items:center; gap:10px;
       padding:10px 12px 12px;
       border-top:1px solid rgba(255,255,255,.10);
       color: var(--muted); font-size:12px;
     }
-    code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 11px; }
 
-    /* Modal */
+    /* create page */
+    .formGrid{
+      display:grid;
+      grid-template-columns: 120px 1fr;
+      gap:10px;
+      align-items:start;
+      margin:10px 0;
+    }
+    .formGrid label{
+      font-size:12px;
+      color:var(--muted);
+      padding-top:10px;
+    }
+    input, textarea{
+      width:100%;
+      border-radius: 14px;
+      border:1px solid rgba(255,255,255,.16);
+      background: rgba(17,24,39,.35);
+      color: var(--text);
+      padding:10px 12px;
+      outline:none;
+    }
+    textarea{ min-height: 120px; resize: vertical; }
+    input::placeholder, textarea::placeholder{ color: rgba(255,255,255,.35); }
+    .miniRow{
+      display:flex; justify-content:space-between; align-items:center;
+      gap:10px;
+      margin-top:8px;
+      color: var(--muted);
+      font-size:12px;
+    }
+    .chip{
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+      font-size:12px;
+      color: rgba(255,255,255,.85);
+      user-select:none;
+    }
+
+    /* modal */
     .overlay{
       position:fixed; inset:0;
       background: rgba(0,0,0,.55);
@@ -210,9 +244,7 @@
       padding:14px 16px;
       border-bottom:1px solid rgba(255,255,255,.10);
     }
-    .modalTop .title{
-      display:flex; align-items:center; gap:10px;
-    }
+    .title{ display:flex; align-items:center; gap:10px; }
     .miniLogo{
       width:34px; height:34px; border-radius:12px;
       background: linear-gradient(135deg, rgba(96,165,250,.95), rgba(167,139,250,.95));
@@ -226,7 +258,7 @@
       border-radius: 999px;
       padding:8px 10px;
       cursor:pointer;
-      font-weight:700;
+      font-weight:800;
       font-size:12px;
     }
     .tabs{
@@ -240,16 +272,54 @@
       padding:8px 10px;
       border-radius:999px;
       font-size:12px; cursor:pointer; user-select:none;
+      font-weight:800;
     }
     .tab.active{
       border-color: rgba(96,165,250,.55);
       background: rgba(96,165,250,.15);
     }
     .modalBody{ padding:12px 16px 16px; }
-    .dividerLine{
-      height:1px; background: rgba(255,255,255,.10);
-      margin:12px 0;
+
+    /* bottom nav */
+    .bottomNav{
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 14px;
+      width: min(620px, calc(100% - 24px));
+      border:1px solid rgba(255,255,255,.16);
+      background: rgba(17,24,39,.55);
+      backdrop-filter: blur(12px);
+      border-radius: 999px;
+      box-shadow: 0 20px 80px rgba(0,0,0,.45);
+      display:flex;
+      padding: 8px;
+      gap: 8px;
+      z-index: 40;
     }
+    .navItem{
+      flex:1;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.88);
+      border-radius: 999px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-weight: 900;
+      font-size: 12px;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap: 8px;
+      user-select:none;
+    }
+    .navItem span{ color: rgba(255,255,255,.72); font-weight: 800; }
+    .navItem.active{
+      border-color: rgba(96,165,250,.55);
+      background: rgba(96,165,250,.18);
+    }
+
+    code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 11px; }
   </style>
 </head>
 
@@ -257,21 +327,19 @@
   <div class="wrap">
     <div class="topbar">
       <div class="leftTop">
-        <!-- Left-top icon (opens login/register modal) -->
-        <div class="avatarBtn" onclick="openAuth()" title="登入 / 註冊">
-          <!-- simple user icon -->
+        <div class="avatarBtn" id="authBtn" title="登入 / 註冊">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M20 21a8 8 0 0 0-16 0" stroke="rgba(255,255,255,.88)" stroke-width="2" stroke-linecap="round"/>
             <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="rgba(255,255,255,.88)" stroke-width="2" stroke-linecap="round"/>
           </svg>
         </div>
-        <div class="avatarDot" id="loginDot" title="登入狀態"></div>
+        <div class="loginDot" id="loginDot" title="登入狀態"></div>
 
         <div class="brand">
           <div class="logo">MI</div>
           <div>
             <h1>Mini IG Demo</h1>
-            <p>點左上角頭像 → 登入/註冊彈窗（不輸入任何 _id）</p>
+            <p>Home 看最新貼文 | Create 發文 | 登入/註冊彈窗</p>
           </div>
         </div>
       </div>
@@ -282,61 +350,85 @@
       </div>
     </div>
 
-    <div class="grid">
-      <div class="card">
-        <div class="head">
-          <div>
-            <h2>貼文牆</h2>
-            <p>登入後可發文；刷新會呼叫 <code>GET /api/posts</code>。</p>
-          </div>
-          <div class="feedControls">
-            <input id="search" class="search" placeholder="搜尋（content / user_name / Email）" oninput="renderFeed()" />
-            <button class="btn" onclick="loadPosts()">刷新</button>
-            <button class="btn ghost" onclick="pingBackend()">測試後端</button>
-          </div>
+    <div class="card">
+      <div class="head">
+        <div>
+          <h2 id="pageTitle">首頁｜最新貼文</h2>
+          <p id="pageDesc">顯示所有貼文，依 time 由新到舊排序。</p>
+        </div>
+        <div class="feedControls">
+          <input id="search" class="search" placeholder="搜尋（content / user_name / Email）" oninput="renderFeed()" />
+          <button class="btn" onclick="loadPosts()">刷新</button>
+          <button class="btn ghost" onclick="pingBackend()">測試後端</button>
+        </div>
+      </div>
+
+      <div class="body">
+        <!-- HOME -->
+        <div id="pageHome">
+          <div class="feed" id="feed"></div>
         </div>
 
-        <div class="body">
-          <!-- Composer -->
-          <div class="card" style="box-shadow:none; background:rgba(255,255,255,.05); border-radius:14px;">
+        <!-- CREATE -->
+        <div id="pageCreate" style="display:none;">
+          <div class="card" style="box-shadow:none; background:rgba(255,255,255,.05); border-radius:16px;">
             <div class="head" style="border-bottom:1px solid rgba(255,255,255,.10);">
               <div>
-                <h2>發一篇貼文</h2>
-                <p>呼叫 <code>POST /api/posts</code>（不傳 post_id）</p>
+                <h2>發佈貼文</h2>
+                <p>內容＋圖片連結（可選）。送出後會切回 Home。</p>
               </div>
               <div class="badge" id="whoami">未登入（點左上角頭像登入）</div>
             </div>
+
             <div class="body">
-              <div class="row">
-                <label>picture</label>
-                <input id="postPic" maxlength="255" placeholder="圖片 URL（可空）" />
-              </div>
-              <div class="row">
-                <label>content*</label>
-                <textarea id="postContent" maxlength="500" placeholder="想說些什麼？"></textarea>
+              <div class="formGrid">
+                <label>圖片 URL</label>
+                <div>
+                  <input id="postPic" maxlength="255" placeholder="https://..." />
+                  <div class="miniRow">
+                    <span>可留空（純文字貼文）</span>
+                    <span class="chip" onclick="fillDemo()">填入範例</span>
+                  </div>
+                </div>
               </div>
 
-              <div class="actions">
-                <button class="btn primary" onclick="createPost()">發文</button>
-                <button class="btn ghost" onclick="fillDemo()">填入範例</button>
+              <div class="formGrid">
+                <label>內容*</label>
+                <div>
+                  <textarea id="postContent" maxlength="500" placeholder="想說些什麼？"></textarea>
+                  <div class="miniRow">
+                    <span id="charCount">0 / 500</span>
+                    <span class="badge">POST /api/posts</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+                <button class="btn primary" onclick="createPost()">發佈</button>
+                <button class="btn ghost" onclick="showPage('home')">回到首頁</button>
                 <button class="btn danger" onclick="logout()">登出</button>
               </div>
 
               <div id="postMsg" class="msg"></div>
+              <div class="hint">
+                使用者不會輸入任何 <code>_id</code>；post_id / user_id 由後端或 DB 產生。<br/>
+                若後端有 token，可回傳並由前端存到 localStorage 自動帶 Authorization。
+              </div>
             </div>
           </div>
+        </div>
 
-          <div style="height:12px;"></div>
-
-          <div class="feed" id="feed"></div>
-
-          <div class="hint" style="padding:0 16px 16px;">
-            你後端回貼文陣列每筆建議包含：<code>{content, time, likes, picture, user_name}</code>。
-            若有回 post_id/user_id，前端可拿來顯示但不讓使用者填。
-          </div>
+        <div class="hint" style="padding:0 2px 0; margin-top:14px;">
+          小提示：若你的後端 time 欄位名稱不是 <code>time</code>（例如 <code>created_at</code>），跟我說我幫你改排序欄位。
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Bottom Nav -->
+  <div class="bottomNav">
+    <button class="navItem active" id="navHome" onclick="showPage('home')">🏠 <span>Home</span></button>
+    <button class="navItem" id="navCreate" onclick="showPage('create')">➕ <span>Create</span></button>
   </div>
 
   <!-- Auth Modal -->
@@ -361,52 +453,41 @@
       <div class="modalBody">
         <!-- LOGIN -->
         <div id="panelLogin">
-          <div class="row">
+          <div class="formGrid">
             <label>Email</label>
             <input id="loginEmail" placeholder="example@mail.com" />
           </div>
-          <div class="row">
+          <div class="formGrid">
             <label>password</label>
             <input id="loginPwd" type="password" placeholder="至少 10 字元" maxlength="20" />
           </div>
-
-          <div class="actions">
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <button class="btn primary" onclick="login()">登入</button>
             <button class="btn" onclick="pingBackend()">測試後端</button>
           </div>
-
           <div id="authMsg" class="msg"></div>
-
           <div class="hint">
-            登入 API：<code>POST /api/login</code> body：<code>{Email, password}</code><br/>
-            後端成功後回傳 user（可含 user_id / user_name / token）。
+            登入：<code>POST /api/login</code> body：<code>{Email, password}</code>
           </div>
         </div>
 
         <!-- REGISTER -->
         <div id="panelRegister" style="display:none;">
-          <div class="row"><label>user_name*</label><input id="regUserName" maxlength="20" placeholder="你的暱稱" /></div>
-          <div class="row"><label>Email*</label><input id="regEmail" maxlength="50" placeholder="example@mail.com" /></div>
-          <div class="row"><label>password*</label><input id="regPwd" maxlength="20" type="password" placeholder=">= 10 字元（DB 有 check）" /></div>
-          <div class="row"><label>bio</label><input id="regBio" maxlength="200" placeholder="一句自介（可空）" /></div>
-          <div class="row"><label>profile_pic</label><input id="regPic" maxlength="255" placeholder="頭像 URL（可空）" /></div>
+          <div class="formGrid"><label>user_name*</label><input id="regUserName" maxlength="20" placeholder="你的暱稱" /></div>
+          <div class="formGrid"><label>Email*</label><input id="regEmail" maxlength="50" placeholder="example@mail.com" /></div>
+          <div class="formGrid"><label>password*</label><input id="regPwd" maxlength="20" type="password" placeholder=">= 10 字元（DB 有 check）" /></div>
+          <div class="formGrid"><label>bio</label><input id="regBio" maxlength="200" placeholder="一句自介（可空）" /></div>
+          <div class="formGrid"><label>profile_pic</label><input id="regPic" maxlength="255" placeholder="頭像 URL（可空）" /></div>
 
-          <div class="actions">
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <button class="btn primary" onclick="register()">註冊</button>
             <button class="btn" onclick="pingBackend()">測試後端</button>
           </div>
 
           <div id="regMsg" class="msg"></div>
-
           <div class="hint">
-            註冊 API：<code>POST /api/register</code> body：<code>{user_name, Email, password, bio, profile_pic}</code><br/>
-            user_id 由後端/DB 生成，不在 UI 出現。
+            註冊：<code>POST /api/register</code> body：<code>{user_name, Email, password, bio, profile_pic}</code>
           </div>
-        </div>
-
-        <div class="dividerLine"></div>
-        <div class="hint" style="margin-top:0;">
-          你只要在最下方把 <code>BASE_URL</code> 改成你同學後端（ngrok/tunnel）網址就能連。
         </div>
       </div>
     </div>
@@ -466,6 +547,7 @@ function fmtTime(t){
   }catch{ return ""; }
 }
 
+/* session */
 function getSession(){
   const raw = localStorage.getItem("miniig_session");
   return raw ? JSON.parse(raw) : null; // { accessToken, user }
@@ -476,7 +558,6 @@ function setSession(session){
   else localStorage.setItem("miniig_session", JSON.stringify(session));
   syncWhoAmI();
 }
-
 function syncWhoAmI(){
   const s = getSession();
   const u = s?.user;
@@ -484,32 +565,36 @@ function syncWhoAmI(){
   setLoginDot();
 }
 
-/* Modal open/close */
-function openAuth(){
-  $("overlay").classList.add("open");
-  // default focus
-  setTimeout(()=> $("loginEmail")?.focus(), 0);
-}
+/* modal */
+function openAuth(){ $("overlay").classList.add("open"); }
 function closeAuth(){
   $("overlay").classList.remove("open");
   showMsg($("authMsg"), "", "");
   showMsg($("regMsg"), "", "");
 }
-function overlayClick(e){
-  // click outside modal to close
-  if (e.target.id === "overlay") closeAuth();
-}
-window.addEventListener("keydown", (e)=>{
-  if (e.key === "Escape") closeAuth();
-});
+function overlayClick(e){ if (e.target.id === "overlay") closeAuth(); }
+window.addEventListener("keydown", (e)=>{ if (e.key === "Escape") closeAuth(); });
 
-/* Tabs */
 function uiSetTab(tab){
   const isLogin = (tab === "login");
   $("tabLogin").classList.toggle("active", isLogin);
   $("tabRegister").classList.toggle("active", !isLogin);
   $("panelLogin").style.display = isLogin ? "block" : "none";
   $("panelRegister").style.display = isLogin ? "none" : "block";
+}
+
+/* page switch */
+function showPage(which){
+  const isHome = (which === "home");
+  $("pageHome").style.display = isHome ? "block" : "none";
+  $("pageCreate").style.display = isHome ? "none" : "block";
+  $("navHome").classList.toggle("active", isHome);
+  $("navCreate").classList.toggle("active", !isHome);
+
+  $("pageTitle").textContent = isHome ? "首頁｜最新貼文" : "發文｜建立新貼文";
+  $("pageDesc").textContent = isHome
+    ? "顯示所有貼文，依 time 由新到舊排序。"
+    : "在這裡撰寫貼文，送出後回到 Home。";
 }
 
 /* API helper */
@@ -534,7 +619,7 @@ async function apiFetch(path, options={}){
   return data;
 }
 
-/* Actions */
+/* backend ping */
 async function pingBackend(){
   try{
     const data = await apiFetch(API.ping, { method:"GET" });
@@ -544,6 +629,7 @@ async function pingBackend(){
   }
 }
 
+/* auth */
 async function register(){
   const msg = $("regMsg");
   showMsg(msg, "", "");
@@ -626,6 +712,7 @@ function logout(){
   showMsg($("postMsg"), "ok", "已登出");
 }
 
+/* posts */
 async function loadPosts(){
   try{
     const data = await apiFetch(API.posts + "?page=1&pageSize=20", { method:"GET" });
@@ -648,20 +735,23 @@ async function createPost(){
     content: $("postContent").value.trim(),
     picture: $("postPic").value.trim(),
   };
+
   if (!payload.content) return showMsg(msg, "err", "content 不能空");
 
   try{
     await apiFetch(API.posts, { method:"POST", body: JSON.stringify(payload) });
-    showMsg(msg, "ok", "發文成功！");
+    showMsg(msg, "ok", "發佈成功！");
     $("postContent").value = "";
     $("postPic").value = "";
+    updateCharCount();
+    showPage("home");
     await loadPosts();
   }catch(e){
     showMsg(msg, "err", `發文失敗：${e.message}`);
   }
 }
 
-/* Render */
+/* render */
 function renderFeed(){
   const q = $("search").value.trim().toLowerCase();
   const feed = $("feed");
@@ -725,6 +815,7 @@ function renderFeed(){
   });
 }
 
+/* helpers */
 function fillDemo(){
   const u = getSession();
   if (!u){
@@ -733,11 +824,22 @@ function fillDemo(){
   }
   $("postPic").value = "https://images.unsplash.com/photo-1520975682031-a4a2c1a53497?auto=format&fit=crop&w=1200&q=60";
   $("postContent").value = `今天 demo 很順！\n— ${u.user_name || u.Email}`;
+  updateCharCount();
 }
 
-/* init */
+function updateCharCount(){
+  const v = $("postContent").value || "";
+  $("charCount").textContent = `${v.length} / 500`;
+}
+
+/* init bindings */
+document.getElementById("authBtn").addEventListener("click", openAuth);
+document.getElementById("postContent").addEventListener("input", updateCharCount);
+
 syncWhoAmI();
 uiSetTab("login");
+showPage("home");
+updateCharCount();
 pingBackend();
 loadPosts().catch(()=>{});
 </script>
