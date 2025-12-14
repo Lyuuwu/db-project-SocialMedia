@@ -789,7 +789,7 @@ function renderFeed(){
     const card = document.createElement("div");
     card.className = "postCard";
 
-    const t = fmtTime(p.created_at);
+    const t = escapeHtml(fmtTime(p.createdAt || ""));
     const likes = (p.likes ?? 0);
 
     const meta = document.createElement("div");
@@ -821,7 +821,7 @@ function renderFeed(){
           <b>${authorName}</b>
         </span>
       </div>
-      <div class="time">${escapeHtml(t)}</div>
+      <div class="time">${t}</div>
     `;
 
     const body = document.createElement("div");
