@@ -58,18 +58,22 @@ def make_like_user_json(row) -> Dict[str, Any]:
 
 
 def make_comment_json(row) -> Dict[str, Any]:
-    # row: comment_id, post_id, content, created_at, author_id, author_name, author_pic, (optional) editableByMe
-    can_edit = bool(row[7]) if len(row) >= 8 else False
+    # row: comment_id, post_id, content, created_at, updated_at, author_id, author_name, author_pic, (optional) editableByMe
+    can_edit = bool(row[8]) if len(row) >= 9 else False
+    updated_at = row[4] if len(row) >= 5 else None
+    edited = updated_at is not None
 
     return {
         "commentId": int(row[0]),
         "postId": int(row[1]),
         "content": row[2],
         "createdAt": dt_to_iso(row[3]),
+        "updatedAt": dt_to_iso(updated_at) if updated_at is not None else None,
+        "edited": edited,
         "author": {
-            "userId": int(row[4]),
-            "userName": row[5],
-            "profilePic": row[6],
+            "userId": int(row[5]),
+            "userName": row[6],
+            "profilePic": row[7],
         },
         "editableByMe": can_edit,
     }

@@ -20,6 +20,8 @@ const $ = (id) => document.getElementById(id);
 // hover 顯示最多幾個人（改 5 / 10 都可以）
 const LIKES_HOVER_LIMIT = 8;
 
+let likesHoverState = { postId: null, isOpen: false };
+
 // 如果你本來就有 tooltip 狀態，就把這兩個變數對應到你的即可
 // ✅ 每篇貼文 likes 名單的版本號：避免舊 request 回來把舊資料塞回快取
 const likesPreviewVer = new Map(); // postId -> integer
@@ -719,32 +721,39 @@ function renderFeed(){
     const card = document.createElement("div");
     card.className = "postCard";
 
-    const t = fmtTime(p.createdAt || p.time);
+    const t = fmtTime(p.created_at);
     const likes = (p.likes ?? 0);
 
     const meta = document.createElement("div");
     meta.className = "postMeta";
+
     const author = p.author || {};
     const authorId = Number(author.userId || 0);
-    const authorRawName = author.userName || p.user_name || "unknown";
+
+    const authorRawName = (author.userName || p.userName || p.user_name || p.authorName || "unknown").trim() || "unknown";
     const authorName = escapeHtml(authorRawName);
-    const authorEmail = escapeHtml(author.email || p.Email || ""); // 有的話才會顯示
-    const authorPic = normalizeBackendUrl(author.profilePic || "");
+
+    const authorEmail = escapeHtml(author.email || p.Email || "") ;
+
+    const authorPicRaw = author.profilePic || p.profilePic || p.profile_pic || p.authorPic || "";
+    const authorPic = normalizeBackendUrl(authorPicRaw);
     const authorInitial = firstLetter(authorRawName);
+
+    const meId = Number(getSession()?.user?.userId || 0);
+    const canDeletePost = meId && (meId === authorId);
 
     const authorAvatarHtml = authorPic
     ? `<img class="authorAvatar" src="${escapeHtml(authorPic)}" alt="avatar" />`
     : `<div class="authorFallback">${escapeHtml(authorInitial)}</div>`;
 
     meta.innerHTML = `
-    <div class="nameLine">
+      <div class="nameLine">
         <span class="authorChip" data-user-id="${authorId}" data-user-name="${escapeHtml(authorRawName)}">
-        ${authorAvatarHtml}
-        <b>${authorName}</b>
+          ${authorAvatarHtml}
+          <b>${authorName}</b>
         </span>
-        ${authorEmail ? `<span class="badge">${authorEmail}</span>` : ""}
-    </div>
-    <div class="time">${t}</div>
+      </div>
+      <div class="time">${escapeHtml(t)}</div>
     `;
 
     const body = document.createElement("div");
@@ -770,9 +779,10 @@ function renderFeed(){
     footer.innerHTML = `
       <span class="likesLink" data-post-id="${postId}">likes: ${likes}</span>
       <button class="btn ghost small toggleCommentsBtn" id="commentsToggleBtn-${postId}" data-post-id="${postId}">💬 留言 (${commentCount})</button>
+
       <span style="display:flex; gap:8px; align-items:center;">
         <button class="btn ghost" onclick="toggleLike(${postId})">${heart} Like</button>
-        <span class="badge">from API</span>
+        ${canDeletePost ? `<button class="btn ghost small postDeleteBtn" data-post-id="${postId}">🗑 刪除貼文</button>` : ""}
       </span>
     `;
 
@@ -839,6 +849,57 @@ async function toggleLike(postId){
     }
 }
 
+async function deletePost(postId){
+  const s = getSession();
+  if (!s?.accessToken){
+    goToAuth();
+    return;
+  }
+
+  if (!confirm("確定要刪除這篇貼文嗎？（留言與按讚也會一起消失）")) return;
+
+  try{
+    await apiFetch(`${API.posts}/${postId}`, { method: "DELETE" });
+
+    // 本地快取移除
+    postsCache = (postsCache || []).filter(p => p.postId !== postId);
+
+    // 清掉相關快取/狀態
+    invalidateLikesPreview(postId);
+    invalidateComments(postId);
+    commentsOpenSet.delete(postId);
+
+    // 重畫
+    renderFeed();
+    setApiStatus(true, "已刪除貼文");
+  }catch(e){
+    setApiStatus(false, `刪除貼文失敗：${e.message}`);
+  }
+}
+
+async function deleteComment(commentId, postId){
+  const s = getSession();
+  if (!s?.accessToken){
+    goToAuth();
+    return;
+  }
+
+  if (!confirm("確定要刪除這則留言嗎？")) return;
+
+  try{
+    await apiFetch(`${API.comments}/${commentId}`, { method: "DELETE" });
+
+    // 直接強制重抓，讓 commentCount / 已編輯標記等都一致
+    invalidateComments(postId);
+    await loadComments(postId, { force: true });
+
+    setApiStatus(true, "已刪除留言");
+  }catch(e){
+    setApiStatus(false, `刪除留言失敗：${e.message}`);
+  }
+}
+
+
 /* =========================
    Comments
    ========================= */
@@ -868,11 +929,17 @@ function renderCommentRow(c){
     : `<div class="commentFallback">${escapeHtml(initial)}</div>`;
 
   const time = escapeHtml(fmtTime(c.createdAt || ""));
+  const editedTag = c.edited ? `<span class="commentEditedTag">已編輯</span>` : "";
   const contentHtml = escapeHtml(c.content || "").replaceAll("\n", "<br>");
-  const canEdit = !!c.editableByMe;
-  const editBtn = canEdit
+  const canManage = !!c.editableByMe; // 你的後端目前回 editableByMe（或你已用這個欄位）
+  const editBtn = canManage
     ? `<button class="btn ghost tiny commentEditBtn" data-comment-id="${c.commentId}" data-post-id="${c.postId}">編輯</button>`
     : "";
+
+  const delBtn = canManage
+    ? `<button class="btn ghost tiny commentDeleteBtn" data-comment-id="${c.commentId}" data-post-id="${c.postId}">刪除</button>`
+    : "";
+
 
   // 注意：textarea 內容要 escape，避免破壞 HTML
   const textareaValue = escapeHtml(c.content || "");
@@ -884,9 +951,15 @@ function renderCommentRow(c){
           ${avatarHtml}
           <b>${name}</b>
         </span>
-        <span class="commentTime">${time}</span>
-        ${editBtn}
+
+        <div class="commentMetaRight">
+          <span class="commentTime">${time}</span>
+          ${editedTag}
+          ${editBtn}
+          ${delBtn}
+        </div>
       </div>
+
       <div class="commentContent">${contentHtml}</div>
       <div class="commentEditArea" style="display:none;">
         <textarea class="commentEditInput" maxlength="1024">${textareaValue}</textarea>
@@ -1045,9 +1118,9 @@ async function saveEditComment(commentId, postId){
       method: "PATCH",
       body: JSON.stringify({ content: newContent }),
     });
-    contentEl.innerHTML = escapeHtml(updated.content || "").replaceAll("\n", "<br>");
-    cancelEditComment(commentId, postId);
+    // 直接重新載入，讓「已編輯」標記與時間顯示一致
     invalidateComments(postId);
+    await loadComments(postId, { force: true });
   }catch(e){
     alert(`編輯失敗：${e.message}`);
   }
@@ -1063,6 +1136,21 @@ function initCommentsUi(){
 
   feed.addEventListener("click", (e) => {
     const t = e.target;
+
+    const delPostBtn = t.closest?.(".postDeleteBtn");
+    if (delPostBtn){
+      const postId = Number(delPostBtn.dataset.postId);
+      if (postId) deletePost(postId);
+      return;
+    }
+
+    const delCommentBtn = t.closest?.(".commentDeleteBtn");
+    if (delCommentBtn){
+      const commentId = Number(delCommentBtn.dataset.commentId);
+      const postId = Number(delCommentBtn.dataset.postId);
+      if (commentId && postId) deleteComment(commentId, postId);
+      return;
+    }
 
     const toggleBtn = t.closest?.(".toggleCommentsBtn");
     if (toggleBtn){

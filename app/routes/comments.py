@@ -67,7 +67,7 @@ def comments_list(post_id: int):
             cur.execute(
                 f"""
                 SELECT
-                    c.comment_id, c.post_id, c.content, c.created_at,
+                    c.comment_id, c.post_id, c.content, c.created_at, c.updated_at,
                     u.user_id, u.user_name, u.profile_pic,
                     CASE WHEN c.user_id = ? THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS editableByMe
                 FROM {tbl('comment')} c
@@ -125,7 +125,7 @@ def comments_create(post_id: int):
             cur.execute(
                 f"""
                 SELECT
-                    c.comment_id, c.post_id, c.content, c.created_at,
+                    c.comment_id, c.post_id, c.content, c.created_at, c.updated_at,
                     u.user_id, u.user_name, u.profile_pic,
                     CAST(1 AS bit) AS editableByMe
                 FROM {tbl('comment')} c
@@ -141,6 +141,39 @@ def comments_create(post_id: int):
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))
 
+@bp.delete("/comments/<int:comment_id>")
+def comments_delete(comment_id: int):
+    try:
+        me = require_auth_user_id()
+    except PermissionError:
+        return api_error(401, "UNAUTHORIZED", "Unauthorized.")
+
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+
+            cur.execute(
+                f"SELECT user_id, post_id FROM {tbl('comment')} WHERE comment_id = ?",
+                (comment_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return api_error(404, "NOT_FOUND", "Comment not found.")
+
+            author_id = int(row[0])
+            if author_id != me:
+                return api_error(403, "FORBIDDEN", "You can only delete your own comment.")
+
+            cur.execute(
+                f"DELETE FROM {tbl('comment')} WHERE comment_id = ? AND user_id = ?",
+                (comment_id, me),
+            )
+            conn.commit()
+
+        return jsonify({"deleted": True, "commentId": comment_id}), 200
+
+    except Exception as e:
+        return api_error(500, "INTERNAL_ERROR", str(e))
 
 @bp.patch("/comments/<int:comment_id>")
 def comments_edit(comment_id: int):
@@ -173,7 +206,7 @@ def comments_edit(comment_id: int):
                 return api_error(403, "FORBIDDEN", "You can only edit your own comment.")
 
             cur.execute(
-                f"UPDATE {tbl('comment')} SET content = ? WHERE comment_id = ?",
+                f"UPDATE {tbl('comment')} SET content = ?, updated_at = sysdatetime() WHERE comment_id = ?",
                 (content, comment_id),
             )
             conn.commit()
@@ -181,7 +214,7 @@ def comments_edit(comment_id: int):
             cur.execute(
                 f"""
                 SELECT
-                    c.comment_id, c.post_id, c.content, c.created_at,
+                    c.comment_id, c.post_id, c.content, c.created_at, c.updated_at,
                     u.user_id, u.user_name, u.profile_pic,
                     CAST(1 AS bit) AS editableByMe
                 FROM {tbl('comment')} c

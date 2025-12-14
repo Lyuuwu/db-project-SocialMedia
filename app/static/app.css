@@ -146,7 +146,14 @@ body{
 }
 .postMeta{
   padding:12px 12px 0;
-  display:flex; justify-content:space-between; gap:10px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:6px;
+}
+
+.postMeta .time{
+  margin-left:36px;
 }
 .nameLine{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; }
 .badge{
@@ -165,12 +172,20 @@ body{
 }
 .imgWrap{ border-top:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.12); }
 .imgWrap img{ width:100%; display:block; max-height: 460px; object-fit: cover; }
+/* footer：左 likes / 中 留言 / 右 actions，永遠置中不受右側寬度影響 */
 .footerBar{
-  display:flex; justify-content:space-between; align-items:center; gap:10px;
   padding:10px 12px 12px;
-  border-top:1px solid rgba(255,255,255,.10);
-  color: var(--muted); font-size:12px;
+  border-top:1px solid rgba(255,255,255,12);
+
+  display:grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items:center;
+  gap:10px;
 }
+
+.footerBar > :nth-child(1){ justify-self:start; }
+.footerBar > :nth-child(2){ justify-self:center; }
+.footerBar > :nth-child(3){ justify-self:end; }
 
 /* comments */
 .commentsWrap{ padding: 0 12px 12px; }
@@ -195,7 +210,20 @@ body{
   border-radius: 14px;
   padding: 10px;
 }
-.commentMeta{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.commentMeta{
+  display:flex;
+  align-items:center;
+  gap:10px;           /* 左側作者跟右側群組的距離 */
+}
+
+.commentMetaRight{
+  margin-left:auto;   /* 把右側整坨推到最右邊 */
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;            /* 右側：時間/已編輯/編輯/刪除 之間更緊 */
+  flex-wrap:wrap;
+}
 .commentTime{ font-size:11px; color: var(--muted); white-space:nowrap; }
 .commentContent{ margin-top:8px; font-size: 13px; line-height: 1.5; white-space:pre-wrap; word-break:break-word; }
 .commentEditArea{ margin-top: 8px; }
@@ -712,4 +740,16 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   margin-top: 8px;
   font-size: 11px;
   color: rgba(255,255,255,.65);
+}
+
+
+.commentEditedTag{
+  display:inline-block;
+  margin-left:6px;
+  font-size:11px;
+  line-height:1;
+  padding:3px 8px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.16);
+  color: var(--muted);
 }

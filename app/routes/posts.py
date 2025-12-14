@@ -142,6 +142,36 @@ def posts_create():
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))
 
+@bp.delete("/<int:post_id>")
+def posts_delete(post_id: int):
+    try:
+        me = require_auth_user_id()
+    except PermissionError:
+        return api_error(401, "UNAUTHORIZED", "Unauthorized.")
+
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+
+            # 確認貼文存在 + 找作者
+            cur.execute(f"SELECT user_id FROM {tbl('post')} WHERE post_id = ?", (post_id,))
+            row = cur.fetchone()
+            if not row:
+                return api_error(404, "NOT_FOUND", "Post not found.")
+
+            author_id = int(row[0])
+            if author_id != me:
+                return api_error(403, "FORBIDDEN", "You can only delete your own post.")
+
+            # 刪除貼文（你的 schema 已設 on delete cascade：likes/comment 會一起被刪）
+            cur.execute(f"DELETE FROM {tbl('post')} WHERE post_id = ? AND user_id = ?", (post_id, me))
+            conn.commit()
+
+        return jsonify({"deleted": True, "postId": post_id}), 200
+
+    except Exception as e:
+        return api_error(500, "INTERNAL_ERROR", str(e))
+
 
 @bp.post("/<int:post_id>/like")
 def like_post(post_id: int):
