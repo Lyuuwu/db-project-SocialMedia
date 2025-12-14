@@ -4,7 +4,14 @@ import pyodbc
 
 from ..errors import api_error
 from ..db import get_conn, tbl
-from ..auth_utils import create_access_token
+from ..auth_utils import (
+    create_access_token,
+    create_refresh_token,
+    get_refresh_token,
+    verify_refresh_token,
+    set_refresh_cookie,
+    clear_refresh_cookie
+)
 from ..serializers import make_user_json
 from ..validators import is_valid_email
 from typing import Any, Dict, List
@@ -79,7 +86,12 @@ def register_v1():
             user_row = cur.fetchone()
 
         access_token = create_access_token(new_id)
-        return jsonify({"accessToken": access_token, "user": make_user_json(user_row)}), 201
+        refresh_token = create_refresh_token(new_id)
+        
+        resp = jsonify({"accessToken": access_token, "user": make_user_json(user_row)})
+        set_refresh_cookie(resp, refresh_token)
+        
+        return resp, 201
 
     except pyodbc.IntegrityError:
         return api_error(409, "CONFLICT", "Conflict.")
@@ -121,9 +133,44 @@ def login_v1():
             return api_error(401, "UNAUTHORIZED", "Invalid credentials.")
 
         access_token = create_access_token(user_id)
+        refresh_token = create_refresh_token(user_id)
         user_json = make_user_json((row[0], row[1], row[2], row[3], row[4]))
 
-        return jsonify({"accessToken": access_token, "user": user_json}), 200
+        resp = jsonify({"accessToken": access_token, "user": user_json})
+        set_refresh_cookie(resp, refresh_token)
+
+        return resp, 200
 
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))
+    
+@bp.post("/refresh")
+def refresh_access_token():
+    """用 refresh cookie 交換新的 access token（前端在遇到 401 時可自動呼叫）。"""
+    token = get_refresh_token()
+    if not token:
+        return api_error(401, "UNAUTHORIZED", "Missing refresh token.")
+
+    try:
+        user_id = verify_refresh_token(token)
+    except PermissionError as pe:
+        reason = str(pe)
+        msg = "Invalid refresh token."
+        if reason == "refresh_expired":
+            msg = "Refresh token expired."
+        return api_error(401, "UNAUTHORIZED", msg)
+
+    # rotation：每次 refresh 都換一張新的 refresh token
+    new_access = create_access_token(user_id)
+    new_refresh = create_refresh_token(user_id)
+
+    resp = jsonify({"accessToken": new_access})
+    set_refresh_cookie(resp, new_refresh)
+    return resp, 200
+
+
+@bp.post("/logout")
+def logout_v1():
+    resp = jsonify({"ok": True})
+    clear_refresh_cookie(resp)
+    return resp, 200

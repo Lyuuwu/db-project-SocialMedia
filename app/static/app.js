@@ -7,6 +7,8 @@ const API = {
   ping: "/db_test",
   register: "/api/v1/auth/register",
   login: "/api/v1/auth/login",
+  refresh: "/api/v1/auth/refresh",
+  logout: "/api/v1/auth/logout",
   me: "/api/v1/users/me",
   users: "/api/v1/users",
   posts: "/api/v1/posts",
@@ -177,11 +179,46 @@ function goBackFromAuth(){
   location.href = next;
 }
 
+let refreshInFlight = null;
+
+async function refreshAccessToken(){
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    try{
+      // refresh token 在 HttpOnly cookie，前端不用保存
+      const res = await fetch(baseOrigin() + API.refresh, {
+        method: "POST",
+        credentials: "same-origin",
+      });
+
+      let data = null;
+      try { data = await res.json(); } catch { data = null; }
+
+      if (!res.ok || !data?.accessToken) return false;
+
+      const s = getSession();
+      if (!s) return false;
+
+      setSession({ ...s, accessToken: data.accessToken });
+      return true;
+    }catch{
+      return false;
+    }finally{
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
 /* ===== API helper ===== */
-async function apiFetch(path, options={}){
+async function apiFetch(path, options = {}){
+  const { _retry, ...rest } = options;
+
   const url = baseOrigin() + path;
-  const headers = Object.assign({ "Content-Type":"application/json" }, options.headers || {});
-  const opts = Object.assign({}, options, { headers });
+  const headers = Object.assign({ "Content-Type":"application/json" }, rest.headers || {});
+  const opts = Object.assign({}, rest, { headers, credentials: "same-origin" });
 
   const s = getSession();
   if (s?.accessToken) headers.Authorization = `Bearer ${s.accessToken}`;
@@ -190,6 +227,17 @@ async function apiFetch(path, options={}){
 
   let data = null;
   try { data = await res.json(); } catch { data = null; }
+
+  // ✅ 如果是 401，而且使用者「以為自己是登入狀態」，就嘗試 refresh 再重試一次
+  if (res.status === 401 && !_retry && getSession()?.accessToken){
+    const ok = await refreshAccessToken();
+    if (ok){
+      return await apiFetch(path, Object.assign({}, options, { _retry: true }));
+    }else{
+      // refresh 也失敗：代表 refresh cookie 也沒了/過期了 → 清 session
+      setSession(null);
+    }
+  }
 
   if (!res.ok){
     const msg = data?.error?.message || data?.message || `HTTP ${res.status}`;
@@ -293,12 +341,21 @@ async function login(){
   }
 }
 
-function logout(){
+async function logout(){
+  try{
+    await fetch(baseOrigin() + API.logout, {
+      method: "POST",
+      credentials: "same-origin",
+    });
+  }catch{
+    // ignore
+  }
+
   setSession(null);
   showMsg($("postMsg"), "ok", "已登出");
-  // 若你想登出就直接去登入頁，也可以改成 goToAuth()
   loadPosts?.().catch?.(()=>{});
 }
+
 
 /* ===== pages (home/create) ===== */
 function showPage(which){
@@ -357,7 +414,18 @@ async function uploadImageIfNeeded(){
   const headers = {};
   if (s?.accessToken) headers.Authorization = `Bearer ${s.accessToken}`;
 
-  const res = await fetch(url, { method:"POST", body: fd, headers });
+  let res = await fetch(url, { method:"POST", body: fd, headers, credentials:"same-origin" });
+
+  if (res.status === 401){
+    const ok = await refreshAccessToken();
+    if (ok){
+      const s2 = getSession();
+      const headers2 = {};
+      if (s2?.accessToken) headers2.Authorization = `Bearer ${s2.accessToken}`;
+      res = await fetch(url, { method:"POST", body: fd, headers: headers2, credentials:"same-origin" });
+    }
+  }
+
   let data = null;
   try { data = await res.json(); } catch { data = null; }
 
