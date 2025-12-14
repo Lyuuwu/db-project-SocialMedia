@@ -314,6 +314,17 @@ function goToProfile(userId){
   location.href = `/u/${id}`;
 }
 
+function goToMyProfile(){
+  const s = getSession();
+  const myId = Number(s?.user?.userId || 0);
+  if (!myId){
+    alert("請先登入後再查看個人頁面");
+    goToAuth();
+    return;
+  }
+  goToProfile(myId);
+}
+
 function getProfileUserIdFromUrl(){
   // /u/123
   const m = location.pathname.match(/^\/u\/(\d+)\s*$/);
