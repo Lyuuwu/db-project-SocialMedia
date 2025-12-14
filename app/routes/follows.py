@@ -1,9 +1,10 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from ..config import Config
 from ..db import get_conn, tbl
 from ..errors import api_error
 from ..auth_utils import require_auth_user_id, get_optional_auth_user_id
+from ..serializers import make_like_user_json
 
 bp = Blueprint("follows", __name__, url_prefix=f"{Config.API_PREFIX}/follows")
 
@@ -108,6 +109,57 @@ def unfollow_user(target_user_id: int):
 
         # idempotent：刪不到也當作已是 unfollow 狀態
         return jsonify({"followed": False}), 200
+
+    except Exception as e:
+        return api_error(500, "INTERNAL_ERROR", str(e))
+
+@bp.get("/<int:user_id>/following")
+def following_list(user_id: int):
+    """
+    取得某個 user 正在追蹤誰(followee 列表)
+    GET /api/v1/follows/<user_id>/following?page=1&pageSize=200
+    回傳：{ items: [{userId,userName,profilePic}], total, page, pageSize }
+    """
+    try:
+        page = int(request.args.get("page", 1))
+        page_size = int(request.args.get("pageSize", 200))
+    except ValueError:
+        return api_error(400, "VALIDATION_ERROR", "Invalid pagination.", [])
+
+    if page < 1:
+        page = 1
+    if page_size < 1:
+        page_size = 50
+    if page_size > 200:
+        page_size = 200
+
+    offset = (page - 1) * page_size
+
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+
+            cur.execute(
+                f"SELECT COUNT(*) FROM {tbl('follow')} WHERE follower_id = ?",
+                (user_id,),
+            )
+            total = int(cur.fetchone()[0])
+
+            cur.execute(
+                f"""
+                SELECT u.user_id, u.user_name, u.profile_pic
+                FROM {tbl('follow')} f
+                JOIN {tbl('users')} u ON u.user_id = f.followee_id
+                WHERE f.follower_id = ?
+                ORDER BY u.user_name ASC
+                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY;
+                """,
+                (user_id, offset, page_size),
+            )
+            rows = cur.fetchall()
+
+        items = [make_like_user_json(r) for r in rows]
+        return jsonify({"items": items, "total": total, "page": page, "pageSize": page_size}), 200
 
     except Exception as e:
         return api_error(500, "INTERNAL_ERROR", str(e))

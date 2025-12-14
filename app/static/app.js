@@ -1401,6 +1401,176 @@ function setFollowBtnState(btn, { targetUserId, followedByMe }){
 }
 
 /* =========================
+   Following list (profile)
+   ========================= */
+const FOLLOWING_PAGE_SIZE = 200;
+
+async function fetchFollowingPage(userId, page){
+  const qs = new URLSearchParams({ page: String(page), pageSize: String(FOLLOWING_PAGE_SIZE) });
+  return await apiFetch(`${API.follows}/${userId}/following?${qs.toString()}`, { method: "GET" });
+}
+
+let followingUiInited = false;
+function initFollowingUi(){
+  if (followingUiInited) return;
+  followingUiInited = true;
+
+  const overlay = $("followingOverlay");
+  const modal = $("followingModal");
+  const closeBtn = $("followingCloseBtn");
+  const list = $("followingModalList");
+
+  if (overlay){
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeFollowingModal();
+    });
+  }
+  if (modal){
+    modal.addEventListener("click", (e) => e.stopPropagation());
+  }
+  if (closeBtn){
+    closeBtn.addEventListener("click", closeFollowingModal);
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeFollowingModal();
+  });
+
+  // 點擊名單中的使用者 -> 導入個人頁
+  if (list){
+    list.addEventListener("click", (e) => {
+      const row = e.target.closest?.(".likeRow");
+      if (!row) return;
+      const uid = Number(row.dataset.userId || 0);
+      if (!uid) return;
+      closeFollowingModal();
+      goToProfile(uid);
+    });
+  }
+}
+
+function openFollowingModal(userId){
+  const overlay = $("followingOverlay");
+  if (!overlay || !userId) return;
+
+  overlay.classList.add("open");
+  overlay.setAttribute("aria-hidden", "false");
+
+  const header = $("followingModalHeader");
+  const list = $("followingModalList");
+  if (header) header.textContent = "載入中…";
+  if (list) list.innerHTML = "";
+
+  loadFollowingIntoModal(userId).catch((err) => {
+    if (header) header.textContent = "讀取失敗";
+    if (list) list.innerHTML = `<div class="msg" style="display:block;">${escapeHtml(err.message)}</div>`;
+  });
+}
+
+function closeFollowingModal(){
+  const overlay = $("followingOverlay");
+  if (!overlay) return;
+  overlay.classList.remove("open");
+  overlay.setAttribute("aria-hidden", "true");
+}
+
+async function loadFollowingIntoModal(userId){
+  const header = $("followingModalHeader");
+  const listEl = $("followingModalList");
+  if (!header || !listEl) return;
+
+  let page = 1;
+  let all = [];
+  let total = 0;
+
+  while (true){
+    const data = await fetchFollowingPage(userId, page);
+    const items = data.items || [];
+    total = data.total ?? total;
+
+    all = all.concat(items);
+
+    if (items.length === 0) break;
+    if (total && all.length >= total) break;
+
+    page += 1;
+    if (page > 200) break; // 保護
+  }
+
+  header.textContent = total ? `追蹤中 ${total} 人` : "目前沒有追蹤任何人";
+  listEl.innerHTML = all.length
+    ? all.map(renderLikeUserRow).join("")
+    : `<div class="msg" style="display:block;">目前沒有追蹤任何人</div>`;
+}
+
+async function updateFollowingBtnCount(userId){
+  const btn = $("profileFollowingBtn");
+  if (!btn || !userId) return;
+
+  try{
+    const data = await apiFetch(`${API.follows}/${userId}/following?page=1&pageSize=1`, { method: "GET" });
+    const total = Number(data.total ?? 0);
+    btn.textContent = `追蹤名單 (${total})`;
+  }catch{
+    btn.textContent = "追蹤名單";
+  }
+}
+
+async function syncProfileFollowState(userId){
+  const btn = $("profileFollowBtn");
+  if (!btn || !userId) return;
+
+  // 先避免閃爍
+  setFollowBtnState(btn, { targetUserId: userId, followedByMe: false });
+
+  try{
+    const followed = await fetchFollowStatus(userId);
+    setFollowBtnState(btn, { targetUserId: userId, followedByMe: followed });
+  }catch{
+    setFollowBtnState(btn, { targetUserId: userId, followedByMe: false });
+  }
+}
+
+function initProfileFollowUi(userId){
+  initFollowingUi();
+
+  const followBtn = $("profileFollowBtn");
+  const followingBtn = $("profileFollowingBtn");
+
+  if (followBtn && !followBtn.dataset.bound){
+    followBtn.dataset.bound = "1";
+
+    followBtn.addEventListener("click", async () => {
+      const s = getSession();
+      if (!s?.accessToken){
+        goToAuth();
+        return;
+      }
+
+      const isFollowing = followBtn.dataset.followed === "1";
+      try{
+        if (isFollowing){
+          const ok = confirm("確定要取消追蹤嗎？");
+          if (!ok) return;
+          await doUnfollow(userId);
+          setFollowBtnState(followBtn, { targetUserId: userId, followedByMe: false });
+        }else{
+          await doFollow(userId);
+          setFollowBtnState(followBtn, { targetUserId: userId, followedByMe: true });
+        }
+      }catch(err){
+        alert(`操作失敗：${err.message}`);
+      }
+    });
+  }
+
+  if (followingBtn && !followingBtn.dataset.bound){
+    followingBtn.dataset.bound = "1";
+    followingBtn.addEventListener("click", () => openFollowingModal(userId));
+  }
+}
+
+/* =========================
    User popover (upgrade)
    ========================= */
 const USER_PREVIEW_CACHE_MS = 30000;
@@ -2005,6 +2175,11 @@ async function initProfile(){
   try{
     profileUser = await apiFetch(`${API.users}/${profileUserId}`, { method:"GET" });
     renderProfileHeader(profileUser);
+
+    // follow / following list (profile)
+    initProfileFollowUi(profileUserId);
+    await syncProfileFollowState(profileUserId);
+    await updateFollowingBtnCount(profileUserId);
 
     // tabs
     document.getElementById("profileTabPosts")?.addEventListener("click", () => loadProfileTab("posts"));

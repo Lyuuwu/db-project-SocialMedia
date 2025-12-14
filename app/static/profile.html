@@ -23,6 +23,20 @@
   </div>
 </div>
 
+<!-- Following Modal -->
+<div id="followingOverlay" class="overlay" aria-hidden="true">
+  <div id="followingModal" class="modal likesModal" role="dialog" aria-modal="true" aria-label="Following list">
+    <div class="modalTop">
+      <div style="font-weight:900;">追蹤名單</div>
+      <button id="followingCloseBtn" class="closeBtn" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div id="followingModalHeader" class="likesModalHeader"></div>
+      <div id="followingModalList" class="likesList"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Profile Settings Modal -->
 <div id="profileSettingsOverlay" class="overlay" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-label="Profile settings">
@@ -111,6 +125,11 @@
           <button id="profileSettingsBtn" class="btn ghost small" style="display:none;">⚙️ 設定</button>
         </div>
 
+        <div class="profileActionsRow">
+          <button id="profileFollowBtn" class="btn followBtn follow" style="display:none;">追蹤</button>
+          <button id="profileFollowingBtn" class="btn ghost small">追蹤名單</button>
+        </div>
+
         <div class="profileBioBox">
           <div class="profileBioTitle">個人簡介</div>
           <div class="profileBioText" id="profileBioText"></div>
@@ -123,7 +142,7 @@
         </div>
 
         <div class="profileContent">
-          <!-- posts / likes 共用這個 feed（沿用你原本的 renderFeed / likes / comments 功能） -->
+          <!-- posts / likes 共用這個 feed -->
           <div id="profileFeedWrap">
             <div class="feed" id="feed"></div>
           </div>
