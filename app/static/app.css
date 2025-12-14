@@ -49,7 +49,7 @@ body{
 .loginDot.ok{ background: rgba(52,211,153,.9); }
 .loginDot.err{ background: rgba(251,113,133,.9); }
 
-.brand{ display:flex; align-items:center; gap:10px; user-select:none; }
+.brand{ display:flex; align-items:center; gap:10px; user-select:none; cursor: pointer; }
 .logo{
   width:42px; height:42px; border-radius:14px;
   background: linear-gradient(135deg, rgba(96,165,250,.95), rgba(167,139,250,.95));
