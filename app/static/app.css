@@ -89,6 +89,37 @@ body{
 .body{ padding:14px 16px 16px; }
 
 .feedControls{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+
+.feedTabs{ margin: 10px 0 12px; }
+.feedTabsInner{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: 999px;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(17,24,39,.30);
+}
+.feedTab{
+  appearance:none;
+  border:none;
+  background: transparent;
+  color: rgba(255,255,255,.65);
+  font-weight:900;
+  font-size:12px;
+  letter-spacing:.2px;
+  padding:10px 12px;
+  cursor:pointer;
+  user-select:none;
+}
+.feedTab:hover{ background: rgba(255,255,255,.06); }
+.feedTab.active{
+  color: rgba(255,255,255,.95);
+  background: rgba(255,255,255,.12);
+}
+.feedTab.following.active{
+  background: rgba(52,211,153,.16);
+}
+
 .search{
   flex:1; min-width:220px;
   border-radius: 999px;

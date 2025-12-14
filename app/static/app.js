@@ -20,6 +20,18 @@ const API = {
 let postsCache = [];
 const $ = (id) => document.getElementById(id);
 
+// ===== home feed mode (all vs following) =====
+let homeFeedMode = "all"; // "all" | "following"
+const HOME_FEED_MODE_KEY = "miniig_home_feed_mode";
+
+// 追蹤名單快取（用來在主頁做「只看追蹤者貼文」）
+const MY_FOLLOWING_CACHE_MS = 30000;
+let myFollowingSet = new Set();
+let myFollowingUserId = 0;
+let myFollowingLoadedAt = 0;
+let myFollowingLoading = null;
+let myFollowingReqSeq = 0;
+
 // hover 顯示最多幾個人（改 5 / 10 都可以）
 const LIKES_HOVER_LIMIT = 8;
 
@@ -83,11 +95,63 @@ function getSession(){
 }
 
 function setSession(session){
+  const prev = getSession();
+  const prevMe = Number(prev?.user?.userId || 0);
+
   if (!session) localStorage.removeItem("miniig_session");
   else localStorage.setItem("miniig_session", JSON.stringify(session));
 
+  const nextMe = Number(session?.user?.userId || 0);
+
+  // ✅ 登入狀態改變時，追蹤名單快取要一起重置（主頁「追蹤」分頁會用到）
+  if (!nextMe || prevMe !== nextMe){
+    resetMyFollowingCache();
+  }else{
+    // 同一個人：讓追蹤名單下次可重新抓一次（避免不同頁面操作後不同步）
+    invalidateMyFollowingCache();
+  }
+
   syncWhoAmI();
   syncAccountUI();
+
+  // 若人在主頁，登入/登出後直接重繪（追蹤分頁需要追蹤名單）
+  const page = document.body?.dataset?.page;
+  if (page === "home"){
+    if (homeFeedMode === "following"){
+      ensureMyFollowingSet({ force: true }).finally(() => renderFeed());
+    }else{
+      renderFeed();
+    }
+  }
+}
+
+function getMeId(){
+  return Number(getSession()?.user?.userId || 0);
+}
+
+function resetMyFollowingCache(){
+  myFollowingSet = new Set();
+  myFollowingUserId = 0;
+  myFollowingLoadedAt = 0;
+  myFollowingLoading = null;
+  myFollowingReqSeq = 0;
+}
+
+function invalidateMyFollowingCache(){
+  myFollowingSet = new Set();
+  myFollowingLoadedAt = 0;
+  myFollowingLoading = null;
+}
+
+function markMyFollowing(targetUserId, isFollowing){
+  const meId = getMeId();
+  if (!meId) return;
+  if (myFollowingUserId !== meId) return;
+  const tid = Number(targetUserId || 0);
+  if (!tid) return;
+  if (isFollowing) myFollowingSet.add(tid);
+  else myFollowingSet.delete(tid);
+  myFollowingLoadedAt = Date.now();
 }
 
 function syncWhoAmI(){
@@ -281,6 +345,59 @@ async function apiFetch(path, options = {}){
   return data;
 }
 
+// ===== my following list (for Home "追蹤" feed) =====
+async function ensureMyFollowingSet({ force = false } = {}){
+  const meId = getMeId();
+  if (!meId){
+    resetMyFollowingCache();
+    return myFollowingSet;
+  }
+
+  const now = Date.now();
+  const userChanged = myFollowingUserId !== meId;
+  const stale = !myFollowingLoadedAt || (now - myFollowingLoadedAt) > MY_FOLLOWING_CACHE_MS;
+
+  if (!force && !userChanged && !stale){
+    return myFollowingSet;
+  }
+
+  if (myFollowingLoading) return myFollowingLoading;
+
+  const seq = ++myFollowingReqSeq;
+  myFollowingLoading = (async () => {
+    const pageSize = 200;
+    let page = 1;
+    let total = 0;
+    let all = [];
+
+    while (true){
+      const data = await apiFetch(`${API.follows}/${meId}/following?page=${page}&pageSize=${pageSize}`, { method: "GET" });
+      const items = data.items || [];
+      total = data.total ?? total;
+      all = all.concat(items);
+
+      if (items.length === 0) break;
+      if (total && all.length >= total) break;
+
+      page += 1;
+      if (page > 200) break; // safety
+    }
+
+    if (seq !== myFollowingReqSeq) return myFollowingSet;
+
+    myFollowingSet = new Set(
+      all.map(u => Number(u.userId || u.user_id || 0)).filter(Boolean)
+    );
+    myFollowingUserId = meId;
+    myFollowingLoadedAt = Date.now();
+    return myFollowingSet;
+  })().finally(() => {
+    if (seq === myFollowingReqSeq) myFollowingLoading = null;
+  });
+
+  return myFollowingLoading;
+}
+
 /* ===== backend ping ===== */
 async function pingBackend(){
   try{
@@ -413,6 +530,56 @@ function showPage(which){
     : "在這裡撰寫貼文，送出後回到 Home。";
 }
 
+/* =========================
+   Home feed tabs (Following vs All)
+   ========================= */
+function applyHomeFeedModeFromStorage(){
+  const v = (localStorage.getItem(HOME_FEED_MODE_KEY) || "").trim();
+  homeFeedMode = (v === "following" || v === "all") ? v : "all";
+}
+
+function updateHomeFeedTabsUI(){
+  const f = $("feedTabFollowing");
+  const a = $("feedTabAll");
+  if (f) f.classList.toggle("active", homeFeedMode === "following");
+  if (a) a.classList.toggle("active", homeFeedMode === "all");
+}
+
+async function switchHomeFeedMode(mode, { silent = false } = {}){
+  const next = (mode === "following") ? "following" : "all";
+  homeFeedMode = next;
+  try{ localStorage.setItem(HOME_FEED_MODE_KEY, homeFeedMode); }catch{}
+  updateHomeFeedTabsUI();
+
+  if (silent){
+    renderFeed?.();
+    return;
+  }
+
+  if (homeFeedMode === "following"){
+    const meId = getMeId();
+    if (meId){
+      try{ await ensureMyFollowingSet({ force: true }); }catch{}
+    }
+  }
+  renderFeed?.();
+}
+
+function initHomeFeedTabs(){
+  applyHomeFeedModeFromStorage();
+  updateHomeFeedTabsUI();
+
+  const wrap = $("feedTabs");
+  if (!wrap) return;
+
+  wrap.addEventListener("click", (e) => {
+    const btn = e.target.closest?.(".feedTab");
+    if (!btn) return;
+    const mode = btn.dataset.mode;
+    switchHomeFeedMode(mode).catch(()=>{});
+  });
+}
+
 /* ====== Image upload + preview ====== */
 function clearPostImage(){
   const f = $("postFile");
@@ -485,8 +652,12 @@ async function loadPosts(){
     // ✅ 建議：整批更新後把 hover 快取清掉
     likesPreviewCache.clear();
     likesHoverState = { postId: null, isOpen: false };
-    hideLikesPopover(); // ✅ 你有這個
+    hideLikesPopover();
 
+    // 若目前在主頁「追蹤」分頁，先確保追蹤名單已載入
+    if (homeFeedMode === "following" && getMeId()){
+      try{ await ensureMyFollowingSet({ force: false }); }catch{}
+    }
 
     renderFeed();
     setApiStatus(true, "後端連線正常");
@@ -881,17 +1052,59 @@ function renderFeed(){
   if (!feed) return;
   feed.innerHTML = "";
 
-  const list = (postsCache || []).filter(p=>{
+  let base = (postsCache || []);
+
+  // ✅ 主頁「追蹤」分頁：只顯示「你追蹤的人 + 自己」的貼文
+  if (homeFeedMode === "following"){
+    const meId = getMeId();
+
+    // 未登入：提示登入
+    if (!meId){
+      const box = document.createElement("div");
+      box.className = "msg";
+      box.style.display = "block";
+      box.innerHTML = `請先登入才能查看追蹤動態。 <button type="button" class="btn ghost small" id="goLoginFromFeed">登入 / 註冊</button>`;
+      feed.appendChild(box);
+      box.querySelector("#goLoginFromFeed")?.addEventListener("click", () => goToAuth());
+      return;
+    }
+
+    // 追蹤名單還沒準備好：先載入
+    const needsLoad = (myFollowingUserId !== meId) || (!myFollowingLoadedAt && !myFollowingLoading);
+    if (needsLoad){
+      ensureMyFollowingSet({ force: true }).catch(()=>{});
+    }
+
+    if (myFollowingLoading){
+      const box = document.createElement("div");
+      box.className = "msg";
+      box.style.display = "block";
+      box.textContent = "載入追蹤名單…";
+      feed.appendChild(box);
+      return;
+    }
+
+    base = base.filter(p => {
+      const authorId = Number(p.author?.userId ?? p.author?.user_id ?? p.userId ?? p.user_id ?? 0);
+      if (!authorId) return false;
+      return (authorId === meId) || myFollowingSet.has(authorId);
+    });
+  }
+
+  const list = base.filter(p=>{
     if (!q) return true;
     const s = `${p.content||""} ${p.author?.userName||""} ${p.author?.email||""}`.toLowerCase();
     return s.includes(q);
   });
 
+
   if (list.length === 0){
     const empty = document.createElement("div");
     empty.className = "msg";
     empty.style.display = "block";
-    empty.textContent = "目前沒有貼文（或搜尋結果為空）。";
+    empty.textContent = (homeFeedMode === "following")
+    ? "追蹤動態目前沒有貼文（或搜尋結果為空）。"
+    : "目前沒有貼文（或搜尋結果為空）。";
     feed.appendChild(empty);
     return;
   }
@@ -2096,6 +2309,7 @@ function initHome(){
   initTopRightAvatarNav();
 
   showPage("home");
+  initHomeFeedTabs();
   initLikesUi();
   initAuthorHoverUi();
   initCommentsUi();
