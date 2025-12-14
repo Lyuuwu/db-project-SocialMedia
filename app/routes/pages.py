@@ -6,6 +6,8 @@ bp = Blueprint("pages", __name__)
 
 @bp.get("/")
 def index():
-    # 直接走 Flask 的 static_folder（預設是 app/static）
-    # 這樣 index.html / app.js / app.css 都會由 /static/... 提供
     return current_app.send_static_file("index.html")
+
+@bp.get("/u/<int:user_id>")
+def profile_page(user_id: int):
+    return current_app.send_static_file("profile.html")

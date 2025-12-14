@@ -13,6 +13,7 @@ const API = {
   users: "/api/v1/users",
   posts: "/api/v1/posts",
   comments: "/api/v1/comments",
+  follows: "/api/v1/follows",
   upload: "/api/upload"
 };
 
@@ -154,6 +155,25 @@ function syncAccountUI(){
   }
 }
 
+function initTopRightAvatarNav(){
+  const avatarMenu = document.getElementById("avatarMenu");
+  if (!avatarMenu) return;
+
+  // 避免重複綁定
+  if (avatarMenu.dataset.profileNavBound === "1") return;
+  avatarMenu.dataset.profileNavBound = "1";
+
+  avatarMenu.addEventListener("click", (e) => {
+    // 點到彈出選單裡的按鈕/連結，不要導頁
+    if (e.target.closest?.(".avatarPopover")) return;
+    if (e.target.closest?.("button, a")) return;
+
+    const meId = Number(getSession()?.user?.userId || 0);
+    if (!meId) return; // 未登入就不做事（或你想導登入頁也可以）
+    goToProfile(meId);
+  });
+}
+
 /* ===== navigation to auth page ===== */
 function safeNextUrl(){
   const params = new URLSearchParams(location.search);
@@ -210,6 +230,21 @@ async function refreshAccessToken(){
   })();
 
   return refreshInFlight;
+}
+
+function goToProfile(userId){
+  const id = Number(userId || 0);
+  if (!id) return;
+  location.href = `/u/${id}`;
+}
+
+function getProfileUserIdFromUrl(){
+  // /u/123
+  const m = location.pathname.match(/^\/u\/(\d+)\s*$/);
+  if (m) return Number(m[1]);
+  // fallback: ?userId=123
+  const qs = new URLSearchParams(location.search);
+  return Number(qs.get("userId") || 0);
 }
 
 /* ===== API helper ===== */
@@ -523,6 +558,17 @@ function ensureLikesPopover(){
     likesHideTimer = null;
   });
   likesPopoverEl.addEventListener("pointerleave", () => scheduleHideLikesPopover());
+  likesPopoverEl.addEventListener("click", (e) => {
+    const row = e.target.closest?.(".likeUserRow");
+    if (!row) return;
+
+    const uid = Number(row.dataset.userId || 0);
+    if (!uid) return;
+
+    hideLikesPopover();
+    goToProfile(uid);
+  });
+
 
   window.addEventListener("scroll", () => {
     if (likesPopoverEl?.classList.contains("show") && activeLikesAnchor) positionLikesPopover(activeLikesAnchor);
@@ -594,14 +640,25 @@ async function fetchLikesPage(postId, page){
 }
 
 function renderLikeUserRow(u){
+  const userId = Number(u.userId || 0);
   const name = escapeHtml(u.userName || "unknown");
   const pic = normalizeBackendUrl(u.profilePic || "");
+
   const avatar = pic
     ? `<img class="likeMiniAvatar" src="${escapeHtml(pic)}" alt="avatar" />`
     : `<div class="likeMiniFallback">${name.slice(0,1).toUpperCase()}</div>`;
 
-  return `<div class="likeRow">${avatar}<div class="likeName">${name}</div></div>`;
+  return `
+    <div class="likeRow likeUserRow"
+         data-user-id="${userId}"
+         role="button"
+         tabindex="0">
+      ${avatar}
+      <div class="likeName">${name}</div>
+    </div>
+  `;
 }
+
 
 let likesPreviewReqSeq = 0;
 
@@ -712,6 +769,20 @@ function initLikesUi(){
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeLikesModal();
   });
+
+  const listEl = $("likesModalList");
+  if (listEl){
+    listEl.addEventListener("click", (e) => {
+      const row = e.target.closest?.(".likeUserRow");
+      if (!row) return;
+
+      const uid = Number(row.dataset.userId || 0);
+      if (!uid) return;
+
+      closeLikesModal();
+      goToProfile(uid);
+    });
+  }
 }
 
 function openLikesModal(postId){
@@ -789,7 +860,7 @@ function renderFeed(){
     const card = document.createElement("div");
     card.className = "postCard";
 
-    const t = escapeHtml(fmtTime(p.createdAt || ""));
+    const t = escapeHtml(fmtTime(p.createdAt || p.created_at || p.time || ""));
     const likes = (p.likes ?? 0);
 
     const meta = document.createElement("div");
@@ -844,6 +915,9 @@ function renderFeed(){
     const postId = p.postId;
     const heart = p.likedByMe ? "♥" : "♡";
     const commentCount = Number(p.commentCount ?? 0);
+
+    card.dataset.postId = String(postId);
+
     footer.innerHTML = `
       <span class="likesLink" data-post-id="${postId}">likes: ${likes}</span>
       <button class="btn ghost small toggleCommentsBtn" id="commentsToggleBtn-${postId}" data-post-id="${postId}">💬 留言 (${commentCount})</button>
@@ -1261,7 +1335,73 @@ function initCommentsUi(){
 }
 
 /* =========================
-   User popover (for post author)
+   Follow (for user popover)
+   ========================= */
+const FOLLOW_CACHE_MS = 15000;
+const followStatusCache = new Map(); // userId -> {ts, followedByMe}
+
+function invalidateFollowStatus(userId){
+  followStatusCache.delete(userId);
+}
+
+async function fetchFollowStatus(userId){
+  const now = Date.now();
+  const cached = followStatusCache.get(userId);
+  if (cached && (now - cached.ts) < FOLLOW_CACHE_MS) return cached.followedByMe;
+
+  try{
+    const data = await apiFetch(`${API.follows}/${userId}`, { method: "GET" });
+    const followed = !!data.followedByMe;
+    followStatusCache.set(userId, { ts: now, followedByMe: followed });
+    return followed;
+  }catch(e){
+    // 沒登入 / 其他錯誤：就當作未追蹤
+    return false;
+  }
+}
+
+async function doFollow(userId){
+  const data = await apiFetch(`${API.follows}/${userId}`, { method: "POST" });
+  invalidateFollowStatus(userId);
+  return !!data.followed;
+}
+
+async function doUnfollow(userId){
+  const data = await apiFetch(`${API.follows}/${userId}`, { method: "DELETE" });
+  invalidateFollowStatus(userId);
+  return !!data.followed; // 應為 false
+}
+
+function setFollowBtnState(btn, { targetUserId, followedByMe }){
+  const meId = Number(getSession()?.user?.userId || 0);
+
+  // 未登入 or 看自己：不顯示按鈕
+  if (!meId || meId === Number(targetUserId || 0)){
+    btn.style.display = "none";
+    btn.dataset.userId = "";
+    btn.dataset.followed = "0";
+    btn.classList.remove("following", "follow");
+    btn.textContent = "";
+    return;
+  }
+
+  btn.style.display = "inline-flex";
+  btn.dataset.userId = String(targetUserId);
+  btn.dataset.followed = followedByMe ? "1" : "0";
+
+  if (followedByMe){
+    btn.classList.add("following");
+    btn.classList.remove("follow");
+    btn.textContent = "追蹤中";
+  }else{
+    btn.classList.add("follow");
+    btn.classList.remove("following");
+    btn.textContent = "追蹤";
+  }
+}
+
+/* =========================
+   User popover (upgrade)
    ========================= */
 const USER_PREVIEW_CACHE_MS = 30000;
 const userPreviewCache = new Map(); // userId -> {ts, data}
@@ -1284,14 +1424,11 @@ function ensureUserPopover(){
   userPopoverEl.className = "userPopover";
   userPopoverEl.id = "userPopover";
   userPopoverEl.innerHTML = `
-    <div class="userPopoverTop">
-      <div class="userPopFallback">U</div>
-      <div class="userPopMeta">
-        <div class="name">載入中…</div>
-        <div class="email"></div>
-      </div>
-    </div>
+    <div class="userPopoverTop"></div>
     <div class="userPopBio"></div>
+    <div class="userPopActions">
+      <button class="btn small followBtn" id="userFollowBtn" type="button" style="display:none;"></button>
+    </div>
     <div class="userPopHint"></div>
   `;
   document.body.appendChild(userPopoverEl);
@@ -1301,6 +1438,38 @@ function ensureUserPopover(){
     userHideTimer = null;
   });
   userPopoverEl.addEventListener("pointerleave", () => scheduleHideUserPopover());
+
+  // ✅ 追蹤按鈕 click
+  userPopoverEl.addEventListener("click", async (e) => {
+    const btn = e.target.closest?.("#userFollowBtn");
+    if (!btn) return;
+
+    const targetId = Number(btn.dataset.userId || 0);
+    if (!targetId) return;
+
+    const s = getSession();
+    if (!s?.accessToken){
+      goToAuth();
+      return;
+    }
+
+    const isFollowing = btn.dataset.followed === "1";
+
+    try{
+      if (isFollowing){
+        const ok = confirm("確定要取消追蹤嗎？");
+        if (!ok) return;
+
+        await doUnfollow(targetId);
+        setFollowBtnState(btn, { targetUserId: targetId, followedByMe: false });
+      }else{
+        await doFollow(targetId);
+        setFollowBtnState(btn, { targetUserId: targetId, followedByMe: true });
+      }
+    }catch(err){
+      alert(`操作失敗：${err.message}`);
+    }
+  });
 
   window.addEventListener("scroll", () => {
     if (userPopoverEl?.classList.contains("show") && activeUserAnchor){
@@ -1336,14 +1505,11 @@ function positionUserPopover(anchor){
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
-  const popW = 300;
-  const popH = pop.offsetHeight || 160;
+  const popW = 320;
+  const popH = pop.offsetHeight || 180;
 
-  // 預設放下方，不夠就放上方
   let top = rect.bottom + gap;
-  if (top + popH > vh - 10){
-    top = rect.top - gap - popH;
-  }
+  if (top + popH > vh - 10) top = rect.top - gap - popH;
   top = Math.max(10, Math.min(top, vh - popH - 10));
 
   let left = rect.left;
@@ -1389,7 +1555,7 @@ function renderUserPopover(u){
 }
 
 async function showUserPopover(anchorEl){
-  const userId = Number(anchorEl.dataset.userId);
+  const userId = Number(anchorEl.dataset.userId || 0);
   if (!userId) return;
 
   const pop = ensureUserPopover();
@@ -1413,17 +1579,37 @@ async function showUserPopover(anchorEl){
   `;
   pop.querySelector(".userPopBio").textContent = "";
   pop.querySelector(".userPopHint").textContent = "";
+  const followBtn = pop.querySelector("#userFollowBtn");
+  if (followBtn){
+    followBtn.style.display = "none";
+    followBtn.textContent = "";
+    followBtn.classList.remove("follow", "following");
+    followBtn.dataset.userId = String(userId);
+    followBtn.dataset.followed = "0";
+  }
 
   const seq = ++userReqSeq;
   try{
-    const data = await fetchUserPreview(userId);
-    if (seq !== userReqSeq) return; // 避免 race condition
-    renderUserPopover(data);
+    // ✅ 同時抓：使用者資料 + 追蹤狀態
+    const [userData, followedByMe] = await Promise.all([
+      fetchUserPreview(userId),
+      fetchFollowStatus(userId),
+    ]);
+
+    if (seq !== userReqSeq) return;
+    if (activeUserId !== userId) return;
+
+    renderUserPopover(userData);
+
+    if (followBtn){
+      setFollowBtnState(followBtn, { targetUserId: userId, followedByMe });
+    }
   }catch(e){
     if (seq !== userReqSeq) return;
     pop.querySelector(".userPopHint").textContent = `讀取失敗：${e.message}`;
   }
 }
+
 
 function initAuthorHoverUi(){
   const feed = $("feed");
@@ -1444,6 +1630,17 @@ function initAuthorHoverUi(){
 
     scheduleHideUserPopover();
   });
+
+  feed.addEventListener("click", (e) => {
+    const chip = e.target.closest?.(".authorChip");
+    if (!chip) return;
+
+    // 避免點到編輯/刪除等按鈕也跳頁（保險）
+    if (e.target.closest?.("button")) return;
+
+    const uid = Number(chip.dataset.userId || 0);
+    if (uid) goToProfile(uid);
+  });
 }
 
 /* helpers */
@@ -1453,10 +1650,18 @@ function updateCharCount(){
   if (el) el.textContent = `${v.length} / 500`;
 }
 
+function scrollToPost(postId){
+  const el = document.querySelector(`.postCard[data-post-id="${postId}"]`);
+  if (!el) return;
+  el.scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
 /* ===== init ===== */
 function initHome(){
   syncWhoAmI();
   syncAccountUI();
+
+  initTopRightAvatarNav();
 
   showPage("home");
   initLikesUi();
@@ -1470,7 +1675,12 @@ function initHome(){
   if (postContent) postContent.addEventListener("input", updateCharCount);
 
   pingBackend();
-  loadPosts().catch(()=>{});
+  const params = new URLSearchParams(location.search);
+  const focusPostId = Number(params.get("postId") || 0);
+
+  loadPosts()
+    .then(() => { if (focusPostId) scrollToPost(focusPostId); })
+    .catch(()=>{});
 }
 
 function initAuth(){
@@ -1478,8 +1688,351 @@ function initAuth(){
   pingBackend();
 }
 
+let profileUser = null;
+let profileUserId = 0;
+
+async function fetchUserPosts(userId){
+  return await apiFetch(`${API.users}/${userId}/posts?page=1&pageSize=50`, { method:"GET" });
+}
+async function fetchUserLikes(userId){
+  return await apiFetch(`${API.users}/${userId}/likes?page=1&pageSize=50`, { method:"GET" });
+}
+async function fetchUserComments(userId){
+  return await apiFetch(`${API.users}/${userId}/comments?page=1&pageSize=100`, { method:"GET" });
+}
+
+function setProfileTab(tab){
+  const tabPosts = document.getElementById("profileTabPosts");
+  const tabComments = document.getElementById("profileTabComments");
+  const tabLikes = document.getElementById("profileTabLikes");
+
+  tabPosts?.classList.toggle("active", tab === "posts");
+  tabComments?.classList.toggle("active", tab === "comments");
+  tabLikes?.classList.toggle("active", tab === "likes");
+
+  const feedWrap = document.getElementById("profileFeedWrap");
+  const commentsWrap = document.getElementById("profileCommentsWrap");
+
+  if (tab === "comments"){
+    if (feedWrap) feedWrap.style.display = "none";
+    if (commentsWrap) commentsWrap.style.display = "block";
+  }else{
+    if (feedWrap) feedWrap.style.display = "block";
+    if (commentsWrap) commentsWrap.style.display = "none";
+  }
+}
+
+function renderProfileHeader(u){
+  const nameEl = document.getElementById("profileName");
+  const emailEl = document.getElementById("profileEmail");
+  const bioEl = document.getElementById("profileBioText");
+
+  if (nameEl) nameEl.textContent = u?.userName || "unknown";
+  if (emailEl) emailEl.textContent = u?.email || "";
+  if (bioEl) bioEl.textContent = (u?.bio || "").trim();
+
+  const img = document.getElementById("profileAvatarImg");
+  const fb = document.getElementById("profileAvatarFallback");
+
+  const pic = normalizeBackendUrl((u?.profilePic || "").trim());
+  if (pic && img && fb){
+    img.src = pic;
+    img.style.display = "block";
+    fb.style.display = "none";
+  }else{
+    if (img) img.style.display = "none";
+    if (fb){
+      fb.style.display = "grid";
+      fb.textContent = firstLetter(u?.userName || u?.email || "U");
+    }
+  }
+
+  // 自己的 profile 才顯示設定
+  const meId = Number(getSession()?.user?.userId || 0);
+  const btn = document.getElementById("profileSettingsBtn");
+  if (btn){
+    btn.style.display = (meId && meId === Number(u?.userId || 0)) ? "inline-flex" : "none";
+  }
+}
+
+function renderProfileCommentCard(c){
+  const author = c.author || {};
+  const rawName = author.userName || "unknown";
+  const name = escapeHtml(rawName);
+  const pic = normalizeBackendUrl(author.profilePic || "");
+  const initial = firstLetter(rawName);
+
+  const avatarHtml = pic
+    ? `<img class="commentAvatar" src="${escapeHtml(pic)}" alt="avatar" />`
+    : `<div class="commentFallback">${escapeHtml(initial)}</div>`;
+
+  const time = escapeHtml(fmtTime(c.createdAt || ""));
+  const editedTag = c.edited ? `<span class="commentEditedTag">已編輯</span>` : "";
+
+  const postId = Number(c.post?.postId || c.postId || 0);
+  const postAuthor = c.post?.author?.userName || "";
+  const postSnippet = (c.post?.content || "").slice(0, 60);
+
+  const canManage = !!c.editableByMe;
+
+  const editBtn = canManage
+    ? `<button class="btn ghost tiny profileCommentEditBtn" data-comment-id="${c.commentId}" data-post-id="${postId}">編輯</button>`
+    : "";
+
+  const delBtn = canManage
+    ? `<button class="btn ghost tiny profileCommentDeleteBtn" data-comment-id="${c.commentId}" data-post-id="${postId}">刪除</button>`
+    : "";
+
+  const contentHtml = escapeHtml(c.content || "").replaceAll("\n","<br>");
+  const textareaValue = escapeHtml(c.content || "");
+
+  return `
+    <div class="profileCommentCard" data-comment-id="${c.commentId}">
+      <div class="commentMeta">
+        <span class="authorChip" data-user-id="${Number(author.userId||0)}" data-user-name="${escapeHtml(rawName)}">
+          ${avatarHtml}
+          <b>${name}</b>
+        </span>
+
+        <div class="commentMetaRight">
+          <span class="commentTime">${time}</span>
+          ${editedTag}
+          ${editBtn}
+          ${delBtn}
+        </div>
+      </div>
+
+      <div class="commentContent">${contentHtml}</div>
+
+      <div class="commentEditArea" style="display:none;">
+        <textarea class="commentEditInput" maxlength="1024">${textareaValue}</textarea>
+        <div class="commentEditActions">
+          <button class="btn primary tiny profileCommentSaveBtn" data-comment-id="${c.commentId}" data-post-id="${postId}">儲存</button>
+          <button class="btn ghost tiny profileCommentCancelBtn" data-comment-id="${c.commentId}" data-post-id="${postId}">取消</button>
+        </div>
+      </div>
+
+      <div class="profileCommentPostRef">
+        <a href="/?postId=${postId}">查看貼文</a>
+        <span>貼文作者：${escapeHtml(postAuthor)}</span>
+        <span>${escapeHtml(postSnippet)}${postSnippet.length>=60 ? "…" : ""}</span>
+      </div>
+    </div>
+  `;
+}
+
+function openProfileSettings(){
+  const overlay = document.getElementById("profileSettingsOverlay");
+  if (!overlay) return;
+  overlay.classList.add("open");
+  overlay.setAttribute("aria-hidden","false");
+
+  const bioInput = document.getElementById("profileBioInput");
+  if (bioInput) bioInput.value = (profileUser?.bio || "");
+  showMsg(document.getElementById("profileSettingsMsg"), "", "");
+}
+
+function closeProfileSettings(){
+  const overlay = document.getElementById("profileSettingsOverlay");
+  if (!overlay) return;
+  overlay.classList.remove("open");
+  overlay.setAttribute("aria-hidden","true");
+}
+
+async function saveProfileSettings(){
+  const msg = document.getElementById("profileSettingsMsg");
+  showMsg(msg, "", "儲存中…");
+
+  const s = getSession();
+  if (!s?.accessToken){
+    showMsg(msg, "err", "請先登入");
+    goToAuth();
+    return;
+  }
+
+  const bio = (document.getElementById("profileBioInput")?.value || "").trim();
+  const f = document.getElementById("profileAvatarFile")?.files?.[0];
+
+  try{
+    let patch = { bio };
+
+    if (f){
+      const fd = new FormData();
+      fd.append("file", f);
+
+      const headers = {};
+      if (s?.accessToken) headers.Authorization = `Bearer ${s.accessToken}`;
+
+      const res = await fetch(baseOrigin() + API.upload, { method:"POST", body: fd, headers });
+      let data = null;
+      try{ data = await res.json(); }catch{ data = null; }
+      if (!res.ok) throw new Error(data?.error?.message || data?.message || "圖片上傳失敗");
+
+      patch.profilePic = data?.url || "";
+    }
+
+    const me = await apiFetch(API.me, { method:"PATCH", body: JSON.stringify(patch) });
+
+    // 更新 session
+    setSession({ accessToken: s.accessToken, user: me });
+
+    // 更新 profile header
+    profileUser = me;
+    renderProfileHeader(profileUser);
+
+    showMsg(msg, "ok", "已更新");
+    setTimeout(closeProfileSettings, 250);
+
+  }catch(e){
+    showMsg(msg, "err", `儲存失敗：${e.message}`);
+  }
+}
+
+async function loadProfileTab(tab){
+  if (!profileUserId) return;
+
+  setProfileTab(tab);
+
+  if (tab === "posts"){
+    const data = await fetchUserPosts(profileUserId);
+    postsCache = data.items || [];
+    renderFeed(); // 沿用你的貼文渲染 + likes/comment 功能
+    return;
+  }
+
+  if (tab === "likes"){
+    const data = await fetchUserLikes(profileUserId);
+    postsCache = data.items || [];
+    renderFeed();
+    return;
+  }
+
+  if (tab === "comments"){
+    const data = await fetchUserComments(profileUserId);
+    const list = data.items || [];
+    const box = document.getElementById("profileCommentsList");
+    if (!box) return;
+
+    if (list.length === 0){
+      box.innerHTML = `<div class="msg" style="display:block;">沒有留言</div>`;
+    }else{
+      box.innerHTML = list.map(renderProfileCommentCard).join("");
+    }
+  }
+}
+
+function initProfileCommentsActions(){
+  const wrap = document.getElementById("profileCommentsWrap");
+  if (!wrap) return;
+
+  wrap.addEventListener("click", async (e) => {
+    const editBtn = e.target.closest?.(".profileCommentEditBtn");
+    if (editBtn){
+      const card = editBtn.closest(".profileCommentCard");
+      if (!card) return;
+      card.querySelector(".commentContent").style.display = "none";
+      card.querySelector(".commentEditArea").style.display = "block";
+      card.querySelector(".commentEditInput")?.focus?.();
+      return;
+    }
+
+    const cancelBtn = e.target.closest?.(".profileCommentCancelBtn");
+    if (cancelBtn){
+      const card = cancelBtn.closest(".profileCommentCard");
+      if (!card) return;
+      card.querySelector(".commentEditArea").style.display = "none";
+      card.querySelector(".commentContent").style.display = "block";
+      return;
+    }
+
+    const saveBtn = e.target.closest?.(".profileCommentSaveBtn");
+    if (saveBtn){
+      const commentId = Number(saveBtn.dataset.commentId || 0);
+      const card = saveBtn.closest(".profileCommentCard");
+      const ta = card?.querySelector(".commentEditInput");
+      const content = (ta?.value || "").trim();
+      if (!commentId || !content) return;
+
+      try{
+        await apiFetch(`${API.comments}/${commentId}`, {
+          method:"PATCH",
+          body: JSON.stringify({ content }),
+        });
+        await loadProfileTab("comments");
+      }catch(err){
+        alert(`編輯失敗：${err.message}`);
+      }
+      return;
+    }
+
+    const delBtn = e.target.closest?.(".profileCommentDeleteBtn");
+    if (delBtn){
+      const commentId = Number(delBtn.dataset.commentId || 0);
+      if (!commentId) return;
+
+      if (!confirm("確定要刪除這則留言嗎？")) return;
+
+      try{
+        await apiFetch(`${API.comments}/${commentId}`, { method:"DELETE" });
+        await loadProfileTab("comments");
+      }catch(err){
+        alert(`刪除失敗：${err.message}`);
+      }
+    }
+  });
+}
+
+async function initProfile(){
+  syncWhoAmI();
+  syncAccountUI();
+
+  initTopRightAvatarNav();
+
+  // 讓 profile 頁也能用 likes modal / hover popover / 文章留言功能
+  initLikesUi();
+  initAuthorHoverUi();
+  initCommentsUi();
+  initProfileCommentsActions();
+
+  pingBackend();
+
+  profileUserId = getProfileUserIdFromUrl();
+  if (!profileUserId){
+    setApiStatus(false, "缺少 userId");
+    return;
+  }
+
+  try{
+    profileUser = await apiFetch(`${API.users}/${profileUserId}`, { method:"GET" });
+    renderProfileHeader(profileUser);
+
+    // tabs
+    document.getElementById("profileTabPosts")?.addEventListener("click", () => loadProfileTab("posts"));
+    document.getElementById("profileTabComments")?.addEventListener("click", () => loadProfileTab("comments"));
+    document.getElementById("profileTabLikes")?.addEventListener("click", () => loadProfileTab("likes"));
+
+    // settings
+    document.getElementById("profileSettingsBtn")?.addEventListener("click", openProfileSettings);
+    document.getElementById("profileSettingsCloseBtn")?.addEventListener("click", closeProfileSettings);
+    document.getElementById("profileSettingsCancelBtn")?.addEventListener("click", closeProfileSettings);
+    document.getElementById("profileSettingsSaveBtn")?.addEventListener("click", saveProfileSettings);
+
+    const overlay = document.getElementById("profileSettingsOverlay");
+    overlay?.addEventListener("click", (e) => { if (e.target === overlay) closeProfileSettings(); });
+
+    // default tab
+    await loadProfileTab("posts");
+
+    setApiStatus(true, "Profile OK");
+
+  }catch(e){
+    setApiStatus(false, `Profile 讀取失敗：${e.message}`);
+  }
+}
+
 (function boot(){
   const page = document.body?.dataset?.page;
   if (page === "home") initHome();
   if (page === "auth") initAuth();
+  if (page === "profile") initProfile();
 })();

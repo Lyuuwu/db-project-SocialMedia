@@ -753,3 +753,155 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   border:1px solid rgba(255,255,255,.16);
   color: var(--muted);
 }
+
+/* user popover actions */
+.userPopActions{
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* follow button states */
+.followBtn.follow{
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.followBtn.following{
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+
+/* =========================
+   Profile page
+   ========================= */
+.profileHero{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+  padding:18px 10px 6px;
+}
+
+.profileAvatarWrap{
+  width:110px;
+  height:110px;
+  border-radius:999px;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.15);
+  display:grid;
+  place-items:center;
+  background:rgba(255,255,255,.06);
+}
+
+.profileAvatarImg{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.profileAvatarFallback{
+  width:100%;
+  height:100%;
+  display:grid;
+  place-items:center;
+  font-weight:900;
+  font-size:40px;
+  opacity:.9;
+}
+
+.profileName{
+  font-weight:900;
+  font-size:20px;
+}
+
+.profileEmail{
+  opacity:.8;
+  font-size:13px;
+}
+
+.profileBioBox{
+  margin:10px 8px 0;
+  padding:12px 12px;
+  border-radius:14px;
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.10);
+}
+
+.profileBioTitle{
+  font-weight:800;
+  margin-bottom:6px;
+  opacity:.9;
+}
+
+.profileBioText{
+  white-space:pre-wrap;
+  line-height:1.45;
+  opacity:.95;
+}
+
+.profileTabs{
+  margin:14px 8px 0;
+  display:flex;
+  gap:8px;
+  border-bottom:1px solid rgba(255,255,255,.10);
+}
+
+.profileTabBtn{
+  flex:1;
+  padding:10px 8px;
+  border:none;
+  background:transparent;
+  color:inherit;
+  font-weight:800;
+  opacity:.75;
+  cursor:pointer;
+  border-bottom:3px solid transparent;
+}
+
+.profileTabBtn.active{
+  opacity:1;
+  border-bottom-color:rgba(255,255,255,.65);
+}
+
+.profileContent{
+  padding:10px 0 0;
+}
+
+.profileCommentsList{
+  padding:8px 10px 14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.profileCommentCard{
+  padding:10px 10px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.04);
+}
+
+.profileCommentPostRef{
+  margin-top:8px;
+  display:flex;
+  gap:10px;
+  opacity:.9;
+  font-size:13px;
+}
+
+.profileCommentPostRef a{
+  color:inherit;
+  text-decoration:underline;
+  opacity:.9;
+}
+
+.authorChip{
+  cursor:pointer;
+}
+
+.likeUserRow{
+  cursor: pointer;
+}
