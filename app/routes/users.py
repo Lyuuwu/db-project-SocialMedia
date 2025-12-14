@@ -6,10 +6,161 @@ from ..db import get_conn, tbl
 from ..auth_utils import require_auth_user_id, get_optional_auth_user_id
 from ..serializers import make_user_json, make_comment_json, make_post_json
 from typing import Any, Dict, List
+import difflib
 
 from ..config import Config
 
 bp = Blueprint("users", __name__, url_prefix=f"{Config.API_PREFIX}/users")
+
+
+# ===== user search (fuzzy match) =====
+def _norm(s: str) -> str:
+    return (s or "").strip().lower()
+
+def _best_match(query: str, user_name: str, email: str, bio: str):
+    """
+    回傳 (score, field, matchedText) 或 None
+    - 先用子字串包含（最直覺、也符合「先做子字串」）
+    - 再用 difflib 做輕量 fuzzy（避免 typo 全 miss）
+    """
+    q = _norm(query)
+    if not q:
+        return None
+
+    candidates = [
+        ("userName", user_name or ""),
+        ("email", email or ""),
+        ("bio", bio or ""),
+    ]
+
+    best = None  # (score, field, matchedText)
+    for field, text in candidates:
+        t = text or ""
+        tl = t.lower()
+
+        # 1) substring match
+        idx = tl.find(q)
+        if idx != -1:
+            # 命中越前面，分數越高；名稱權重更高
+            base = 1.0
+            if field == "userName":
+                base += 0.6
+            elif field == "email":
+                base += 0.3
+            score = base + max(0.0, 0.4 - (idx / max(1, len(tl))) * 0.4)
+
+            matched = t[idx: idx + len(q)] if len(t) >= idx + len(q) else q
+            cand = (score, field, matched)
+            if (best is None) or (cand[0] > best[0]):
+                best = cand
+            continue
+
+        # 2) fuzzy ratio
+        ratio = difflib.SequenceMatcher(None, q, tl).ratio()
+        if ratio >= 0.72:
+            base = ratio
+            if field == "userName":
+                base += 0.15
+            elif field == "email":
+                base += 0.07
+            cand = (base, field, q)
+            if (best is None) or (cand[0] > best[0]):
+                best = cand
+
+    return best
+
+
+@bp.get("/search")
+def users_search():
+    """
+    搜尋用戶（第一種搜尋）
+    GET /api/v1/users/search?query=xxx&limit=20
+
+    回傳：
+    {
+      items: [
+        { userId, email, userName, bio, profilePic, followedByMe, match: {field, text, score} }
+      ]
+    }
+    """
+    query = (request.args.get("query") or "").strip()
+    try:
+        limit = int(request.args.get("limit", 20))
+    except ValueError:
+        limit = 20
+    if limit < 1:
+        limit = 1
+    if limit > 50:
+        limit = 50
+
+    viewer = get_optional_auth_user_id()
+
+    if not query:
+        return jsonify({"items": []}), 200
+
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+
+            # 先用 SQL 做粗篩（避免整張表搬回來）
+            # SQL Server 預設常是 case-insensitive，但為了保險用 LOWER。
+            ql = _norm(query)
+            like = f"%{ql}%"
+
+            if viewer is None:
+                cur.execute(
+                    f"""
+                    SELECT TOP 200 user_id, Email, user_name, bio, profile_pic, banner_pic
+                    FROM {tbl('users')}
+                    WHERE LOWER(user_name) LIKE ? OR LOWER(Email) LIKE ? OR LOWER(ISNULL(bio,'')) LIKE ?
+                    """,
+                    (like, like, like),
+                )
+                rows = cur.fetchall()
+            else:
+                cur.execute(
+                    f"""
+                    SELECT TOP 200
+                        u.user_id, u.Email, u.user_name, u.bio, u.profile_pic, u.banner_pic,
+                        CASE WHEN EXISTS (
+                            SELECT 1 FROM {tbl('follow')} f
+                            WHERE f.follower_id = ? AND f.followee_id = u.user_id
+                        ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS followedByMe
+                    FROM {tbl('users')} u
+                    WHERE LOWER(u.user_name) LIKE ? OR LOWER(u.Email) LIKE ? OR LOWER(ISNULL(u.bio,'')) LIKE ?
+                    """,
+                    (viewer, like, like, like),
+                )
+                rows = cur.fetchall()
+
+        items = []
+        for r in rows:
+            # viewer 有/無，欄位數不同
+            if viewer is None:
+                user_id, email, user_name, bio, profile_pic, banner_pic = r
+                followed_by_me = False
+            else:
+                user_id, email, user_name, bio, profile_pic, banner_pic, followed_by_me = r
+                followed_by_me = bool(followed_by_me)
+
+            m = _best_match(query, user_name, email, bio)
+            if not m:
+                continue
+            score, field, mtext = m
+
+            u = make_user_json((user_id, email, user_name, bio, profile_pic, banner_pic))
+            u["followedByMe"] = followed_by_me
+            u["match"] = {"field": field, "text": mtext, "score": float(score)}
+            items.append(u)
+
+        # score high -> front
+        items.sort(key=lambda x: (x.get("match", {}).get("score", 0.0)), reverse=True)
+        return jsonify({"items": items[:limit]}), 200
+
+    except Exception as e:
+        return api_error(500, "INTERNAL_ERROR", str(e))
+
+
 
 @bp.get('/me')
 def users_me_get():
@@ -26,7 +177,7 @@ def users_me_get():
         with get_conn() as conn:
             cur = conn.cursor()
             cur.execute(
-                f"SELECT user_id, Email, user_name, bio, profile_pic FROM {tbl('users')} WHERE user_id = ?",
+                f"SELECT user_id, Email, user_name, bio, profile_pic, banner_pic FROM {tbl('users')} WHERE user_id = ?",
                 (me,),
             )
             row = cur.fetchone()
@@ -56,6 +207,7 @@ def users_me_patch():
     new_user_name = data.get("userName")
     new_bio = data.get("bio")
     new_profile_pic = data.get("profilePic")
+    new_banner_pic = data.get("bannerPic")
 
     details: List[Dict[str, str]] = []
     if new_user_name is not None:
@@ -71,6 +223,12 @@ def users_me_patch():
     if new_profile_pic is not None:
         if not isinstance(new_profile_pic, str):
             details.append({"field": "profilePic", "reason": "invalid"})
+
+    if new_banner_pic is not None:
+        if not isinstance(new_banner_pic, str):
+            details.append({"field": "bannerPic", "reason": "invalid"})
+        elif len(new_banner_pic) > 1024:
+            details.append({"field": "bannerPic", "reason": "too_long"})
 
     if details:
         return api_error(400, "VALIDATION_ERROR", "Invalid request body.", details)
@@ -100,6 +258,9 @@ def users_me_patch():
             if new_profile_pic is not None:
                 fields.append("profile_pic = ?")
                 params.append(new_profile_pic)
+            if new_banner_pic is not None:
+                fields.append("banner_pic = ?")
+                params.append(new_banner_pic)
 
             if fields:
                 params.append(me)
@@ -108,7 +269,7 @@ def users_me_patch():
                 conn.commit()
 
             cur.execute(
-                f"SELECT user_id, Email, user_name, bio, profile_pic FROM {tbl('users')} WHERE user_id = ?",
+                f"SELECT user_id, Email, user_name, bio, profile_pic, banner_pic FROM {tbl('users')} WHERE user_id = ?",
                 (me,),
             )
             row = cur.fetchone()
@@ -127,7 +288,7 @@ def users_get(user_id: int):
         with get_conn() as conn:
             cur = conn.cursor()
             cur.execute(
-                f"SELECT user_id, Email, user_name, bio, profile_pic FROM {tbl('users')} WHERE user_id = ?",
+                f"SELECT user_id, Email, user_name, bio, profile_pic, banner_pic FROM {tbl('users')} WHERE user_id = ?",
                 (user_id,),
             )
             row = cur.fetchone()

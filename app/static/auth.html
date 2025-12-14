@@ -67,7 +67,7 @@
           <div class="formGrid"><label>Email*</label><input id="regEmail" maxlength="50" placeholder="example@mail.com" /></div>
           <div class="formGrid"><label>password*</label><input id="regPwd" maxlength="64" type="password" placeholder="至少 6 字元（依你後端規則）" /></div>
           <div class="formGrid"><label>bio</label><input id="regBio" maxlength="200" placeholder="一句自介（可空）" /></div>
-          <div class="formGrid"><label>profile_pic</label><input id="regPic" maxlength="255" placeholder="頭像 URL（可空）" /></div>
+          <div class="formGrid"><label>頭像</label><input id="regAvatarFile" type="file" accept="image/*" /></div>
 
           <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <button class="btn primary" onclick="register()">註冊</button>
@@ -77,7 +77,7 @@
           <div id="regMsg" class="msg"></div>
           <div class="hint">
             註冊：<code>POST /api/v1/auth/register</code> body：<code>{email, password, userName}</code><br/>
-            之後會用 <code>PATCH /api/v1/users/me</code> 更新 bio / profilePic（若有填）。
+            之後會用 <code>POST /api/upload</code> 上傳頭像，再用 <code>PATCH /api/v1/users/me</code> 更新 bio / profilePic（若有選檔）。
           </div>
         </div>
 

@@ -15,13 +15,15 @@ def dt_to_iso(dt: datetime | None) -> str:
     return dt.replace(microsecond=0).isoformat()
 
 def make_user_json(row: Tuple[Any, ...]) -> Dict[str, Any]:
-    # row: (user_id, Email, user_name, bio, profile_pic)
+    # row: (user_id, Email, user_name, bio, profile_pic, banner_pic?)
+    banner_pic = row[5] if len(row) >= 6 else None
     return {
         "userId": int(row[0]),
         "email": row[1],
         "userName": row[2],
         "bio": row[3],
         "profilePic": row[4],
+        "bannerPic": banner_pic,
         # 你的 users table 沒有 createdAt 欄位，所以這裡先回傳伺服器時間
         # 若你之後加 users.created_at (datetime2 default sysdatetime)，改成查欄位回來即可
         "createdAt": now_iso8601(),
@@ -33,6 +35,8 @@ def make_post_json(row) -> dict:
     liked = bool(row[8]) if len(row) >= 9 else False
     comment_count = int(row[9]) if len(row) >= 10 and row[9] is not None else 0
 
+    content = row[2] or ""
+
     return {
         "postId": int(row[0]),
         "author": {
@@ -41,7 +45,7 @@ def make_post_json(row) -> dict:
             "profilePic": row[7],
         },
         "picture": row[1],
-        "content": row[2],
+        "content": content,
         "likes": int(row[3] or 0),
         "createdAt": dt_to_iso(row[4]),
         "likedByMe": liked,

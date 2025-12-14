@@ -70,10 +70,17 @@
       <div class="head">
         <div>
           <h2 id="pageTitle">首頁｜最新貼文</h2>
-          <p id="pageDesc">顯示所有貼文，依 time/createdAt 由新到舊排序。</p>
+          <p id="pageDesc">顯示所有貼文，依 發文時間 由新到舊排序。</p>
         </div>
         <div class="feedControls">
-          <input id="search" class="search" placeholder="搜尋（content / user_name / Email）" oninput="renderFeed()" />
+          <div class="searchGroup">
+            <select id="searchMode" class="searchMode" onchange="onSearchModeChange()">
+              <option value="users">搜尋用戶</option>
+              <option value="posts">搜尋貼文</option>
+            </select>
+            <input id="search" class="search" placeholder="輸入用戶名稱 / Email / Bio…" oninput="onSearchInput()" />
+            <button class="btn" id="searchBtn" onclick="performSearch()">搜尋</button>
+          </div>
           <button class="btn" onclick="loadPosts()">刷新</button>
           <button class="btn ghost" onclick="pingBackend()">測試後端</button>
         </div>
@@ -82,7 +89,22 @@
       <div class="body">
         <!-- HOME -->
         <div id="pageHome">
-          <div class="feedTabs" id="feedTabs">
+          
+          <!-- User search result (Twitter-like horizontal list) -->
+          <div id="userSearchSection" class="userSearchSection" style="display:none;">
+            <div class="userSearchBar">
+              <div class="userSearchLabel">符合條件的用戶</div>
+              <div class="userSearchNav">
+                <button type="button" id="userPrevBtn" class="iconBtn" aria-label="prev">◀</button>
+                <button type="button" id="userNextBtn" class="iconBtn" aria-label="next">▶</button>
+              </div>
+            </div>
+            <div id="userCarouselWrap" class="userCarouselWrap">
+              <div id="userCarousel" class="userCarousel" aria-label="user results"></div>
+            </div>
+          </div>
+
+<div class="feedTabs" id="feedTabs">
             <div class="feedTabsInner">
               <button type="button" class="feedTab following" id="feedTabFollowing" data-mode="following">追蹤</button>
               <button type="button" class="feedTab all active" id="feedTabAll" data-mode="all">全部</button>
@@ -120,10 +142,6 @@
                       style="width:100%; max-height:420px; object-fit:cover;
                             border-radius:14px; border:1px solid rgba(255,255,255,.15);" />
                   </div>
-
-                  <div class="hint">
-                    發文時會先呼叫 <code>POST /api/upload</code> 上傳圖片，回傳 <code>url</code> 後再建立貼文。
-                  </div>
                 </div>
               </div>
 
@@ -146,10 +164,6 @@
               <div id="postMsg" class="msg"></div>
             </div>
           </div>
-        </div>
-
-        <div class="hint" style="padding:0 2px 0; margin-top:14px;">
-          小提示：若你的時間欄位是 <code>createdAt</code>，我已經用 <code>createdAt || time</code> 兼容。
         </div>
       </div>
     </div>

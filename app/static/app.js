@@ -24,6 +24,18 @@ const $ = (id) => document.getElementById(id);
 let homeFeedMode = "all"; // "all" | "following"
 const HOME_FEED_MODE_KEY = "miniig_home_feed_mode";
 
+// ===== home search (users vs posts) =====
+let searchMode = "users"; // "users" | "posts"
+let searchDebounceTimer = null;
+let userSearchUsers = [];
+let userSearchActive = false;
+let userSearchQuery = "";
+
+// ===== post search state =====
+let postSearchActive = false;
+let postSearchQuery = "";
+let postSearchReqSeq = 0;
+
 // 追蹤名單快取（用來在主頁做「只看追蹤者貼文」）
 const MY_FOLLOWING_CACHE_MS = 30000;
 let myFollowingSet = new Set();
@@ -432,7 +444,7 @@ async function register(){
   const userName = $("regUserName")?.value.trim();
 
   const bio = $("regBio")?.value.trim();
-  const profilePic = $("regPic")?.value.trim();
+  const avatarFile = document.getElementById("regAvatarFile")?.files?.[0];
 
   if (!email || !password || !userName){
     return showMsg(msg, "err", "必填：email / password / userName");
@@ -446,10 +458,31 @@ async function register(){
 
     setSession({ accessToken: data.accessToken, user: data.user });
 
-    if (bio || profilePic){
+    if (bio || avatarFile){
       const patchBody = {};
       if (bio) patchBody.bio = bio;
-      if (profilePic) patchBody.profilePic = profilePic;
+
+      // 註冊後用 accessToken 才能 PATCH /me，所以圖片在這裡上傳 & 更新
+      if (avatarFile){
+        const fd = new FormData();
+        fd.append("file", avatarFile);
+
+        // 若你之後把 /api/upload 改成需要登入，這裡先把 token 帶上
+        const headers = {};
+        if (data?.accessToken) headers.Authorization = `Bearer ${data.accessToken}`;
+
+        const res = await fetch(baseOrigin() + API.upload, {
+          method: "POST",
+          body: fd,
+          headers,
+        });
+
+        let up = null;
+        try{ up = await res.json(); }catch{ up = null; }
+        if (!res.ok) throw new Error(up?.error?.message || up?.message || "圖片上傳失敗");
+
+        patchBody.profilePic = up?.url || "";
+      }
 
       const me = await apiFetch(API.me, {
         method:"PATCH",
@@ -562,6 +595,12 @@ async function switchHomeFeedMode(mode, { silent = false } = {}){
       try{ await ensureMyFollowingSet({ force: true }); }catch{}
     }
   }
+
+  if (searchMode === "posts" && postSearchActive && postSearchQuery){
+    await performPostSearch(postSearchQuery);
+    return;
+  }
+
   renderFeed?.();
 }
 
@@ -638,9 +677,11 @@ async function uploadImageIfNeeded(){
 }
 
 /* posts */
-async function loadPosts(){
+async function loadPosts(opts = {}){
   try{
-    const data = await apiFetch(API.posts + "?page=1&pageSize=50", { method:"GET" });
+    const authorIds = (opts?.authorIds || "").trim();
+    const qs = authorIds ? `?page=1&pageSize=50&authorIds=${encodeURIComponent(authorIds)}` : "?page=1&pageSize=50";
+    const data = await apiFetch(API.posts + qs, { method:"GET" });
     postsCache = Array.isArray(data) ? data : (data.items || []);
 
     postsCache.sort((a,b)=>{
@@ -1046,8 +1087,391 @@ async function loadAllLikesIntoModal(postId){
     : `<div class="msg" style="display:block;">目前還沒有人按讚</div>`;
 }
 
+
+// ===== user search UI =====
+function setSearchMode(mode){
+  searchMode = (mode === "posts") ? "posts" : "users";
+  if (searchMode === "users"){
+    postSearchActive = false;
+    postSearchQuery = "";
+  }
+  const sel = document.getElementById("searchMode");
+  if (sel) sel.value = searchMode;
+
+  const input = document.getElementById("search");
+  if (input){
+    input.placeholder = (searchMode === "users")
+      ? "輸入用戶名稱 / Email / Bio…"
+      : "搜尋貼文內文…";
+  }
+
+  // 切到 posts：先回到原本的首頁貼文
+  if (searchMode === "posts"){
+    clearUserSearch({ reloadPosts: true });
+  }
+}
+
+function onSearchModeChange(){
+  const sel = document.getElementById("searchMode");
+  setSearchMode(sel?.value || "users");
+}
+
+function onSearchInput(){
+  const q = (document.getElementById("search")?.value || "").trim();
+
+  if (searchMode === "users"){
+    // debounce：避免每個字都打 API
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      performUserSearch(q).catch(()=>{});
+    }, 260);
+    return;
+  }
+
+  // posts mode：debounce 走後端搜尋
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    performPostSearch(q).catch(()=>{});
+  }, 260);
+  return;
+}
+
+function performSearch(){
+  const q = (document.getElementById("search")?.value || "").trim();
+
+  if (searchMode === "users"){
+    performUserSearch(q).catch(()=>{});
+    return;
+  }
+
+  // posts mode：後端搜尋
+  performPostSearch(q).catch(()=>{});
+}
+
+function clearUserSearch({ reloadPosts = false } = {}){
+  userSearchUsers = [];
+  userSearchActive = false;
+  userSearchQuery = "";
+
+  const sec = document.getElementById("userSearchSection");
+  if (sec) sec.style.display = "none";
+  const car = document.getElementById("userCarousel");
+  if (car) car.innerHTML = "";
+
+  // feed tabs 恢復
+  const tabs = document.getElementById("feedTabs");
+  tabs?.classList.remove("disabled");
+
+  if (reloadPosts){
+    loadPosts().catch(()=>{});
+  }else{
+    renderFeed();
+  }
+}
+
+
+function clearPostSearch({ reloadPosts = false } = {}){
+  postSearchActive = false;
+  postSearchQuery = "";
+
+  const input = document.getElementById("search");
+  if (input) input.value = "";
+
+  if (reloadPosts){
+    loadPosts().catch(()=>{});
+  }else{
+    renderFeed();
+  }
+}
+
+async function performPostSearch(q){
+  const query = (q || "").trim();
+
+  // 切到 posts 搜尋時：一定要先清掉 user 搜尋 UI
+  if (userSearchActive){
+    clearUserSearch({ reloadPosts: false });
+  }
+
+  // 空字串：回到一般貼文列表
+  if (!query){
+    postSearchActive = false;
+    postSearchQuery = "";
+    await loadPosts();
+    return;
+  }
+
+  postSearchActive = true;
+  postSearchQuery = query;
+
+  // 主頁用戶搜尋區塊隱藏
+  const sec = document.getElementById("userSearchSection");
+  if (sec) sec.style.display = "none";
+
+  // 依目前 feed tab 決定是否只看追蹤
+  const followOnly = (homeFeedMode === "following") ? "1" : "0";
+
+  const mySeq = ++postSearchReqSeq;
+  try{
+    const data = await apiFetch(`${API.posts}/search?query=${encodeURIComponent(query)}&page=1&pageSize=50&followOnly=${followOnly}`, { method:"GET" });
+    if (mySeq !== postSearchReqSeq) return; // ignore stale
+
+    postsCache = Array.isArray(data) ? data : (data.items || []);
+    renderFeed();
+  }catch(e){
+    // 搜尋失敗：不要卡死，至少顯示錯誤訊息
+    postsCache = [];
+    renderFeed();
+    alert(`搜尋貼文失敗：${e.message}`);
+  }
+}
+
+
+function renderUserCard(u){
+  const userId = Number(u?.userId || 0);
+  const userName = (u?.userName || "").trim();
+  const email = (u?.email || "").trim();
+  const bio = (u?.bio || "").trim();
+  const picRaw = (u?.profilePic || "").trim();
+  const pic = normalizeBackendUrl(picRaw);
+  const banner = normalizeBackendUrl((u?.bannerPic || "").trim());
+
+  const followedByMe = !!u?.followedByMe;
+  const meId = getMeId();
+  const canFollow = !!meId && userId && (userId !== meId);
+
+  const avatarHtml = pic
+    ? `<img class="userAvatar" src="${escapeHtml(pic)}" alt="avatar" />`
+    : `<div class="userAvatarFallback" aria-hidden="true">${escapeHtml(initialsFromUser({ userName, email }))}</div>`;
+
+  const btnText = followedByMe ? "追蹤中" : "追蹤";
+  const btnClass = followedByMe ? "btn ghost small userFollowBtn" : "btn primary small userFollowBtn";
+
+  return `
+    <div class="userCard" data-user-id="${userId}">
+      <div class="userCardTop"${banner ? ` style="background-image:url(\'${escapeHtml(banner)}\')"` : ""}></div>
+      <div class="userCardBody">
+        <div class="userCardLeft">
+          ${avatarHtml}
+          <div class="userMiniName" title="${escapeHtml(userName)}">${escapeHtml(userName || "—")}</div>
+          <div class="userMiniEmail" title="${escapeHtml(email)}">${escapeHtml(email || "")}</div>
+        </div>
+        <div class="userCardMain">
+          <div class="userBio" title="${escapeHtml(bio)}">${escapeHtml(bio || "（沒有介紹）")}</div>
+          <div class="userCardActions">
+            <button type="button"
+                    class="${btnClass}"
+                    data-action="follow"
+                    data-followed="${followedByMe ? "1" : "0"}"
+                    ${canFollow ? "" : "disabled"}>
+              ${btnText}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function updateUserNavButtons(){
+  const car = document.getElementById("userCarousel");
+  const prev = document.getElementById("userPrevBtn");
+  const next = document.getElementById("userNextBtn");
+  if (!car || !prev || !next) return;
+
+  const max = Math.max(0, car.scrollWidth - car.clientWidth);
+  const x = Math.round(car.scrollLeft);
+
+  const atLeft = x <= 0;
+  const atRight = x >= (max - 1);
+
+  prev.style.display = atLeft ? "none" : "grid";
+  next.style.display = atRight ? "none" : "grid";
+}
+
+function scrollUserCarousel(dir){
+  const car = document.getElementById("userCarousel");
+  if (!car) return;
+
+  // 一次滑動「一張卡」左右（含 gap）
+  const card = car.querySelector(".userCard");
+  const step = card ? (card.getBoundingClientRect().width + 12) : 320;
+
+  const max = Math.max(0, car.scrollWidth - car.clientWidth);
+  const target = Math.min(max, Math.max(0, car.scrollLeft + dir * step));
+  car.scrollTo({ left: target, behavior: "smooth" });
+}
+
+function bindUserCarouselDrag(){
+  const car = document.getElementById("userCarousel");
+  if (!car) return;
+
+  let dragging = false;
+  let startX = 0;
+  let startLeft = 0;
+
+  const onDown = (e) => {
+    dragging = true;
+    car.classList.add("dragging");
+    startX = (e.touches ? e.touches[0].clientX : e.clientX);
+    startLeft = car.scrollLeft;
+  };
+
+  const onMove = (e) => {
+    if (!dragging) return;
+    const x = (e.touches ? e.touches[0].clientX : e.clientX);
+    const dx = x - startX;
+
+    const max = Math.max(0, car.scrollWidth - car.clientWidth);
+    const next = Math.min(max, Math.max(0, startLeft - dx));
+    car.scrollLeft = next;
+    updateUserNavButtons();
+    if (e.cancelable) e.preventDefault();
+  };
+
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    car.classList.remove("dragging");
+    updateUserNavButtons();
+  };
+
+  car.addEventListener("mousedown", onDown);
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+
+  // touch
+  car.addEventListener("touchstart", onDown, { passive: true });
+  car.addEventListener("touchmove", onMove, { passive: false });
+  car.addEventListener("touchend", onUp);
+  car.addEventListener("scroll", () => updateUserNavButtons(), { passive: true });
+}
+
+function initUserSearchUi(){
+  const input = document.getElementById("search");
+  input?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter"){
+      e.preventDefault();
+      performSearch();
+    }
+  });
+
+  document.getElementById("userPrevBtn")?.addEventListener("click", () => scrollUserCarousel(-1));
+  document.getElementById("userNextBtn")?.addEventListener("click", () => scrollUserCarousel(1));
+
+  bindUserCarouselDrag();
+
+  // 預設：第一種搜尋先做，所以直接設成 users
+  setSearchMode(document.getElementById("searchMode")?.value || "users");
+  updateUserNavButtons();
+}
+
+async function performUserSearch(query){
+  const q = (query || "").trim();
+  const sec = document.getElementById("userSearchSection");
+  const tabs = document.getElementById("feedTabs");
+
+  if (!q){
+    clearUserSearch({ reloadPosts: true });
+    return;
+  }
+
+  userSearchActive = true;
+  userSearchQuery = q;
+
+  // user 搜尋時，不用「追蹤/全部」分頁（貼文已經是依搜尋用戶決定）
+  tabs?.classList.add("disabled");
+
+  // 先顯示 loading
+  if (sec) sec.style.display = "block";
+  const car = document.getElementById("userCarousel");
+  if (car) car.innerHTML = `<div class="msg" style="display:block; min-width:240px;">搜尋用戶中…</div>`;
+
+  const data = await apiFetch(`${API.users}/search?query=${encodeURIComponent(q)}&limit=20`, { method:"GET" });
+  const items = Array.isArray(data?.items) ? data.items : [];
+
+  userSearchUsers = items;
+
+  if (!items.length){
+    if (car) car.innerHTML = `<div class="msg" style="display:block; min-width:240px;">找不到符合用戶。</div>`;
+    updateUserNavButtons();
+    postsCache = [];
+    renderFeed();
+    return;
+  }
+
+  if (car){
+    car.innerHTML = items.map(renderUserCard).join("");
+  }
+
+  // bind events on cards
+  car?.querySelectorAll(".userCard").forEach(el => {
+    const uid = Number(el.getAttribute("data-user-id") || 0);
+
+    // 點卡片去 profile
+    el.addEventListener("click", (e) => {
+      const act = e.target?.getAttribute?.("data-action");
+      if (act === "follow") return; // follow button handled separately
+      if (!uid) return;
+      location.href = `/static/profile.html?userId=${uid}`;
+    });
+
+    // follow button
+    const btn = el.querySelector('button[data-action="follow"]');
+    btn?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const meId = getMeId();
+      if (!meId){
+        goToAuth();
+        return;
+      }
+      if (!uid || uid === meId) return;
+
+      const currently = btn.getAttribute("data-followed") === "1";
+      btn.disabled = true;
+
+      try{
+        if (currently){
+          await apiFetch(`${API.follows}/${uid}`, { method:"DELETE" });
+          btn.setAttribute("data-followed", "0");
+          btn.className = "btn primary small userFollowBtn";
+          btn.textContent = "追蹤";
+          // update cache + local state
+          markMyFollowing(uid, false);
+          const u = userSearchUsers.find(x => Number(x.userId) === uid);
+          if (u) u.followedByMe = false;
+        }else{
+          await apiFetch(`${API.follows}/${uid}`, { method:"POST" });
+          btn.setAttribute("data-followed", "1");
+          btn.className = "btn ghost small userFollowBtn";
+          btn.textContent = "追蹤中";
+          markMyFollowing(uid, true);
+          const u = userSearchUsers.find(x => Number(x.userId) === uid);
+          if (u) u.followedByMe = true;
+        }
+      }catch(err){
+        alert(`追蹤操作失敗：${err.message}`);
+      }finally{
+        btn.disabled = false;
+      }
+    });
+  });
+
+  // 捲動到最左邊
+  if (car) car.scrollLeft = 0;
+  updateUserNavButtons();
+
+  // load posts from these users only
+  const ids = items.map(u => Number(u.userId)).filter(Boolean).join(",");
+  await loadPosts({ authorIds: ids });
+}
+
+
 function renderFeed(){
-  const q = ($("search")?.value || "").trim().toLowerCase();
+  const rawQ = ($("search")?.value || "").trim();
+  const q = (searchMode === "posts") ? (postSearchActive ? postSearchQuery : rawQ) : "";
+  const ql = (q || "").trim().toLowerCase();
   const feed = $("feed");
   if (!feed) return;
   feed.innerHTML = "";
@@ -1092,9 +1516,9 @@ function renderFeed(){
   }
 
   const list = base.filter(p=>{
-    if (!q) return true;
-    const s = `${p.content||""} ${p.author?.userName||""} ${p.author?.email||""}`.toLowerCase();
-    return s.includes(q);
+    if (!ql) return true;
+    const s = (p.content || "").toLowerCase();
+    return s.includes(ql);
   });
 
 
@@ -2310,6 +2734,7 @@ function initHome(){
 
   showPage("home");
   initHomeFeedTabs();
+  initUserSearchUi();
   initLikesUi();
   initAuthorHoverUi();
   initCommentsUi();
@@ -2390,6 +2815,20 @@ function renderProfileHeader(u){
     if (fb){
       fb.style.display = "grid";
       fb.textContent = firstLetter(u?.userName || u?.email || "U");
+    }
+  }
+
+
+  // banner
+  const bannerEl = document.getElementById("profileBanner");
+  const banner = normalizeBackendUrl((u?.bannerPic || "").trim());
+  if (bannerEl){
+    if (banner){
+      bannerEl.classList.remove("empty");
+      bannerEl.style.backgroundImage = `url("${banner.replace(/"/g, "%22")}")`;
+    }else{
+      bannerEl.classList.add("empty");
+      bannerEl.style.backgroundImage = "";
     }
   }
 
@@ -2498,6 +2937,7 @@ async function saveProfileSettings(){
 
   const bio = (document.getElementById("profileBioInput")?.value || "").trim();
   const f = document.getElementById("profileAvatarFile")?.files?.[0];
+  const bf = document.getElementById("profileBannerFile")?.files?.[0];
 
   try{
     let patch = { bio };
@@ -2515,6 +2955,29 @@ async function saveProfileSettings(){
       if (!res.ok) throw new Error(data?.error?.message || data?.message || "圖片上傳失敗");
 
       patch.profilePic = data?.url || "";
+    }
+
+
+
+    if (bf){
+      const fd2 = new FormData();
+      fd2.append("file", bf);
+
+      // 同上，若之後 upload 需要登入，先帶 token
+      const headers2 = {};
+      if (s?.accessToken) headers2.Authorization = `Bearer ${s.accessToken}`;
+
+      const res2 = await fetch(baseOrigin() + API.upload, {
+        method: "POST",
+        body: fd2,
+        headers: headers2,
+      });
+
+      let data2 = null;
+      try{ data2 = await res2.json(); }catch{ data2 = null; }
+      if (!res2.ok) throw new Error(data2?.error?.message || data2?.message || "圖片上傳失敗");
+
+      patch.bannerPic = data2?.url || "";
     }
 
     const me = await apiFetch(API.me, { method:"PATCH", body: JSON.stringify(patch) });

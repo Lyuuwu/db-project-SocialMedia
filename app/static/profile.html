@@ -68,6 +68,14 @@
       </div>
 
       <div class="formGrid">
+        <label>背景圖片</label>
+        <div>
+          <input id="profileBannerFile" type="file" accept="image/*" />
+          <div class="hint">上傳後會更新你的 bannerPic（會顯示在個人頁 & 用戶搜尋卡片上方）</div>
+        </div>
+      </div>
+
+      <div class="formGrid">
         <label>個人簡介</label>
         <div>
           <textarea id="profileBioInput" maxlength="1024" placeholder="寫點自我介紹…"></textarea>
@@ -128,15 +136,22 @@
     <div class="card">
       <div class="body">
         <div class="profileHero">
-          <div class="profileAvatarWrap">
-            <img id="profileAvatarImg" class="profileAvatarImg" alt="avatar" style="display:none;" />
-            <div id="profileAvatarFallback" class="profileAvatarFallback">U</div>
+          <!-- Banner layer (behind avatar / name) -->
+          <div id="profileBanner" class="profileBannerLayer" aria-label="banner"></div>
+
+          <button id="profileSettingsBtn" class="btn ghost small profileSettingsBtn" style="display:none;">⚙️ 設定</button>
+          
+          <div class="profileHeroInner">
+            <div class="profileAvatarWrap">
+              <img id="profileAvatarImg" class="profileAvatarImg" alt="avatar" style="display:none;" />
+              <div id="profileAvatarFallback" class="profileAvatarFallback">U</div>
+            </div>
+
+            <div class="profileName" id="profileName">—</div>
+            <div class="profileEmail" id="profileEmail"></div>
+
+            <button id="profileSettingsBtn" class="btn ghost small" style="display:none;">⚙️ 設定</button>
           </div>
-
-          <div class="profileName" id="profileName">—</div>
-          <div class="profileEmail" id="profileEmail"></div>
-
-          <button id="profileSettingsBtn" class="btn ghost small" style="display:none;">⚙️ 設定</button>
         </div>
 
         <div class="profileActionsRow">

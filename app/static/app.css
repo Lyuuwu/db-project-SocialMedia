@@ -965,3 +965,198 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   padding: 6px 10px;
   border-radius: 999px;
 }
+
+
+/* ===== User search (Twitter-like carousel) ===== */
+
+.searchGroup{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.searchMode{
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.12);
+  color:inherit;
+  padding:10px 12px;
+  border-radius:12px;
+  outline:none;
+}
+.searchMode option{ color:#111; }
+.userSearchSection{
+  margin: 10px 0 14px;
+  padding: 10px 10px 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.10);
+}
+.userSearchBar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.userSearchLabel{
+  font-weight:900;
+  opacity:.95;
+}
+.userSearchNav{
+  display:flex;
+  gap:8px;
+}
+.iconBtn{
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.15);
+  background:rgba(255,255,255,.06);
+  color:inherit;
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+}
+.iconBtn:hover{ background:rgba(255,255,255,.10); }
+.iconBtn:disabled{
+  opacity:.35;
+  cursor:not-allowed;
+}
+.userCarouselWrap{
+  overflow:hidden;
+  border-radius:14px;
+}
+.userCarousel{
+  display:flex;
+  gap:12px;
+  overflow-x:auto;
+  scroll-behavior:smooth;
+  padding-bottom:4px;
+}
+.userCarousel::-webkit-scrollbar{ height:10px; }
+.userCarousel::-webkit-scrollbar-thumb{
+  background: rgba(255,255,255,.15);
+  border-radius: 99px;
+}
+.userCard{
+  flex: 0 0 310px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(0,0,0,.20);
+  overflow:hidden;
+  position:relative;
+}
+.userCardTop{
+  height: 68px;
+  background: linear-gradient(135deg, rgba(255,255,255,.15), rgba(255,255,255,.03));
+  background-size: cover;
+  background-position: center;
+}
+.userCardBody{
+  padding: 10px 12px 12px;
+  display:flex;
+  gap:10px;
+}
+.userCardLeft{
+  width:72px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+}
+.userAvatar{
+  width:54px;
+  height:54px;
+  border-radius: 999px;
+  object-fit:cover;
+  border:1px solid rgba(255,255,255,.18);
+}
+.userAvatarFallback{
+  width:54px;
+  height:54px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);
+  font-weight:900;
+}
+.userMiniName{
+  font-weight:900;
+  font-size: 12px;
+  text-align:center;
+  line-height: 1.1;
+  max-width:72px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.userMiniEmail{
+  font-size: 11px;
+  opacity:.78;
+  text-align:center;
+  max-width:72px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.userCardMain{
+  flex:1;
+  min-width:0;
+}
+.userBio{
+  font-size: 12px;
+  opacity:.9;
+  line-height: 1.3;
+  max-height: 48px;
+  overflow:hidden;
+}
+.userCardActions{
+  margin-top:10px;
+  display:flex;
+  justify-content:flex-end;
+}
+.userFollowBtn{
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+.feedTabs.disabled{
+  opacity:.55;
+  pointer-events:none;
+}
+
+/* ===== Profile Hero banner behind avatar ===== */
+.profileHero{
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 0;
+  display: block; /* 覆蓋原本 flex，避免 banner 寬度縮成 0 */
+  gap: 0;
+}
+
+.profileBannerLayer{
+  width: 100%;
+  height: 180px;
+  background: linear-gradient(135deg, rgba(255,255,255,.15), rgba(255,255,255,.03));
+  background-size: cover;
+  background-position: center;
+}
+
+.profileHeroInner{
+  position: relative;
+  z-index: 1;
+  padding: 0 14px 14px;
+  margin-top: -46px;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.profileSettingsBtn{
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+}

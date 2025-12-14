@@ -65,9 +65,9 @@ def register_v1():
 
             cur.execute(
                 f"""
-                INSERT INTO {tbl('users')} (Email, pwd, bio, profile_pic, user_name)
+                INSERT INTO {tbl('users')} (Email, pwd, bio, profile_pic, banner_pic, user_name)
                 OUTPUT INSERTED.user_id
-                VALUES (?, ?, NULL, NULL, ?);
+                VALUES (?, ?, NULL, NULL, NULL, ?);
                 """,
                 (email, pwd_hash, user_name),
             )
@@ -80,7 +80,7 @@ def register_v1():
 
             # fetch user
             cur.execute(
-                f"SELECT user_id, Email, user_name, bio, profile_pic FROM {tbl('users')} WHERE user_id = ?",
+                f"SELECT user_id, Email, user_name, bio, profile_pic, banner_pic FROM {tbl('users')} WHERE user_id = ?",
                 (new_id,),
             )
             user_row = cur.fetchone()
@@ -117,7 +117,7 @@ def login_v1():
         with get_conn() as conn:
             cur = conn.cursor()
             cur.execute(
-                f"SELECT user_id, Email, user_name, bio, profile_pic, pwd FROM {tbl('users')} WHERE Email = ?",
+                f"SELECT user_id, Email, user_name, bio, profile_pic, banner_pic, pwd FROM {tbl('users')} WHERE Email = ?",
                 (email,),
             )
             row = cur.fetchone()
@@ -126,7 +126,7 @@ def login_v1():
             return api_error(401, "UNAUTHORIZED", "Invalid credentials.")
 
         user_id = int(row[0])
-        stored_hash = str(row[5])
+        stored_hash = str(row[6])
 
         ok = bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
         if not ok:
@@ -134,7 +134,7 @@ def login_v1():
 
         access_token = create_access_token(user_id)
         refresh_token = create_refresh_token(user_id)
-        user_json = make_user_json((row[0], row[1], row[2], row[3], row[4]))
+        user_json = make_user_json((row[0], row[1], row[2], row[3], row[4], row[5]))
 
         resp = jsonify({"accessToken": access_token, "user": user_json})
         set_refresh_cookie(resp, refresh_token)
