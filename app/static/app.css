@@ -920,3 +920,17 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
 .likeUserRow{
   cursor: pointer;
 }
+
+.likeRow.hasActions{
+  cursor: pointer;
+}
+.likeRowActions{
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.likeRowActions .btn{
+  padding: 6px 10px;
+  border-radius: 999px;
+}

@@ -118,7 +118,7 @@ def following_list(user_id: int):
     """
     取得某個 user 正在追蹤誰(followee 列表)
     GET /api/v1/follows/<user_id>/following?page=1&pageSize=200
-    回傳：{ items: [{userId,userName,profilePic}], total, page, pageSize }
+    回傳：{ items: [{userId,userName,profilePic,followedByMe?}], total, page, pageSize }
     """
     try:
         page = int(request.args.get("page", 1))
@@ -134,6 +134,7 @@ def following_list(user_id: int):
         page_size = 200
 
     offset = (page - 1) * page_size
+    me = get_optional_auth_user_id()
 
     try:
         with get_conn() as conn:
@@ -147,14 +148,81 @@ def following_list(user_id: int):
 
             cur.execute(
                 f"""
-                SELECT u.user_id, u.user_name, u.profile_pic
+                SELECT
+                    u.user_id, u.user_name, u.profile_pic,
+                    CASE WHEN EXISTS (
+                        SELECT 1 FROM {tbl('follow')} f2
+                        WHERE f2.follower_id = ? AND f2.followee_id = u.user_id
+                    ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS followedByMe
                 FROM {tbl('follow')} f
                 JOIN {tbl('users')} u ON u.user_id = f.followee_id
                 WHERE f.follower_id = ?
                 ORDER BY u.user_name ASC
                 OFFSET ? ROWS FETCH NEXT ? ROWS ONLY;
                 """,
-                (user_id, offset, page_size),
+                (me, user_id, offset, page_size),
+            )
+            rows = cur.fetchall()
+
+        items = [make_like_user_json(r) for r in rows]
+        return jsonify({"items": items, "total": total, "page": page, "pageSize": page_size}), 200
+
+    except Exception as e:
+        return api_error(500, "INTERNAL_ERROR", str(e))
+    
+@bp.get("/<int:user_id>/followers")
+def followers_list(user_id: int):
+    """
+    取得某個 user 的粉絲(追蹤他的人)列表
+    GET /api/v1/follows/<user_id>/followers?page=1&pageSize=200
+
+    回傳：{ items: [{userId,userName,profilePic,followedByMe?}], total, page, pageSize }
+    其中 followedByMe 表示「目前登入者是否已追蹤該粉絲」。
+    """
+    try:
+        page = int(request.args.get("page", 1))
+        page_size = int(request.args.get("pageSize", 200))
+    except ValueError:
+        return api_error(400, "VALIDATION_ERROR", "Invalid pagination.", [])
+
+    if page < 1:
+        page = 1
+    if page_size < 1:
+        page_size = 50
+    if page_size > 200:
+        page_size = 200
+
+    offset = (page - 1) * page_size
+    me = get_optional_auth_user_id()
+
+    try:
+        with get_conn() as conn:
+            cur = conn.cursor()
+
+            if not _ensure_user_exists(cur, user_id):
+                return api_error(404, "NOT_FOUND", "User not found.")
+
+            cur.execute(
+                f"SELECT COUNT(*) FROM {tbl('follow')} WHERE followee_id = ?",
+                (user_id,),
+            )
+            total = int(cur.fetchone()[0])
+
+            cur.execute(
+                f"""
+                SELECT
+                    u.user_id, u.user_name, u.profile_pic,
+                    CASE WHEN EXISTS (
+                        SELECT 1 FROM {tbl('follow')} f2
+                        WHERE f2.follower_id = ? AND f2.followee_id = u.user_id
+                    ) THEN CAST(1 AS bit) ELSE CAST(0 AS bit) END AS followedByMe
+                FROM {tbl('follow')} f
+                JOIN {tbl('users')} u ON u.user_id = f.follower_id
+                WHERE f.followee_id = ?
+                ORDER BY u.user_name ASC
+                OFFSET ? ROWS FETCH NEXT ? ROWS ONLY;
+                """,
+                (me, user_id, offset, page_size),
             )
             rows = cur.fetchall()
 

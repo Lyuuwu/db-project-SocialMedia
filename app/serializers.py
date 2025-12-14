@@ -50,11 +50,17 @@ def make_post_json(row) -> dict:
     
 def make_like_user_json(row) -> Dict[str, Any]:
     # row: (user_id, user_name, profile_pic)
-    return {
+    
+    payload = {
         "userId": int(row[0]),
         "userName": row[1],
-        "profilePic": row[2],
+        "profilePic": row[2]
     }
+    
+    if len(row) >= 4:
+        payload["followedByMe"] = bool(row[3])
+    
+    return payload
 
 
 def make_comment_json(row) -> Dict[str, Any]:

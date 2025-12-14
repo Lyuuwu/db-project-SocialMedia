@@ -37,6 +37,20 @@
   </div>
 </div>
 
+<!-- Followers Modal -->
+<div id="followersOverlay" class="overlay" aria-hidden="true">
+  <div id="followersModal" class="modal likesModal" role="dialog" aria-modal="true" aria-label="Followers list">
+    <div class="modalTop">
+      <div style="font-weight:900;">粉絲</div>
+      <button id="followersCloseBtn" class="closeBtn" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div id="followersModalHeader" class="likesModalHeader"></div>
+      <div id="followersModalList" class="likesList"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Profile Settings Modal -->
 <div id="profileSettingsOverlay" class="overlay" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-label="Profile settings">
@@ -128,6 +142,7 @@
         <div class="profileActionsRow">
           <button id="profileFollowBtn" class="btn followBtn follow" style="display:none;">追蹤</button>
           <button id="profileFollowingBtn" class="btn ghost small">追蹤名單</button>
+          <button id="profileFollowersBtn" class="btn ghost small">粉絲</button>
         </div>
 
         <div class="profileBioBox">

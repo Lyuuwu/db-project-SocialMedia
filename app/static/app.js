@@ -659,6 +659,48 @@ function renderLikeUserRow(u){
   `;
 }
 
+// follow / followers 名單用：右側多一個「追蹤/追蹤中」按鈕（可直接管理）
+function renderFollowUserRow(u, { showAction = true, profileUserId = 0 } = {}){
+  const userId = Number(u.userId || 0);
+  const meId = Number(getSession()?.user?.userId || 0);
+  const name = escapeHtml(u.userName || "unknown");
+  const pic = normalizeBackendUrl(u.profilePic || "");
+
+  const avatar = pic
+    ? `<img class="likeMiniAvatar" src="${escapeHtml(pic)}" alt="avatar" />`
+    : `<div class="likeMiniFallback">${name.slice(0,1).toUpperCase()}</div>`;
+
+  const loggedIn = !!getSession()?.accessToken;
+  // 自己不顯示追蹤按鈕
+  if (meId && userId && meId === userId) showAction = false;
+
+  const canManage = showAction && loggedIn && meId && (meId !== userId);
+
+  const followed = !!u.followedByMe;
+
+  const btnHtml = canManage
+    ? `<div class="likeRowActions">
+         <button class="btn small followBtn inlineFollowBtn ${followed ? "following" : "follow"}"
+                 data-user-id="${userId}"
+                 data-profile-user-id="${Number(profileUserId || 0)}"
+                 data-followed="${followed ? "1" : "0"}">
+           ${followed ? "追蹤中" : "追蹤"}
+         </button>
+       </div>`
+    : ``;
+
+  return `
+    <div class="likeRow likeUserRow hasActions"
+         data-user-id="${userId}"
+         role="button"
+         tabindex="0">
+      ${avatar}
+      <div class="likeName">${name}</div>
+      ${btnHtml}
+    </div>
+  `;
+}
+
 
 let likesPreviewReqSeq = 0;
 
@@ -1344,6 +1386,11 @@ function invalidateFollowStatus(userId){
   followStatusCache.delete(userId);
 }
 
+function setFollowStatusCache(userId, followedByMe){
+  if (!userId) return;
+  followStatusCache.set(Number(userId), { ts: Date.now(), followedByMe: !!followedByMe });
+}
+
 async function fetchFollowStatus(userId){
   const now = Date.now();
   const cached = followStatusCache.get(userId);
@@ -1439,6 +1486,55 @@ function initFollowingUi(){
   // 點擊名單中的使用者 -> 導入個人頁
   if (list){
     list.addEventListener("click", (e) => {
+      // 先處理「追蹤/追蹤中」按鈕（不要觸發導頁）
+      const btn = e.target.closest?.(".inlineFollowBtn");
+      if (btn){
+        e.preventDefault();
+        e.stopPropagation();
+
+        const targetId = Number(btn.dataset.userId || 0);
+        if (!targetId) return;
+
+        const s = getSession();
+        if (!s?.accessToken){
+          goToAuth();
+          return;
+        }
+
+        const currentlyFollowed = (btn.dataset.followed === "1");
+        if (currentlyFollowed){
+          if (!confirm("確定要取消追蹤嗎？")) return;
+        }
+
+        (async () => {
+          try{
+            if (currentlyFollowed) await doUnfollow(targetId);
+            else await doFollow(targetId);
+
+            // 更新按鈕狀態
+            const nowFollowed = !currentlyFollowed;
+            btn.dataset.followed = nowFollowed ? "1" : "0";
+            btn.classList.toggle("following", nowFollowed);
+            btn.classList.toggle("follow", !nowFollowed);
+            btn.textContent = nowFollowed ? "追蹤中" : "追蹤";
+
+            // 保持 profile follow button 一致
+            setFollowStatusCache(targetId, nowFollowed);
+
+            // 如果正在看自己的個人頁：追蹤數會變，更新一下
+            const meId = Number(getSession()?.user?.userId || 0);
+            const profileUserId = Number(getProfileUserIdFromUrl() || 0);
+            if (meId && profileUserId && meId === profileUserId){
+              await updateFollowingBtnCount(profileUserId);
+              await updateFollowersBtnCount(profileUserId);
+            }
+          }catch(err){
+            alert(`操作失敗：${err.message}`);
+          }
+        })();
+        return;
+      }
+
       const row = e.target.closest?.(".likeRow");
       if (!row) return;
       const uid = Number(row.dataset.userId || 0);
@@ -1474,6 +1570,163 @@ function closeFollowingModal(){
   overlay.setAttribute("aria-hidden", "true");
 }
 
+/* =========================
+   Followers modal (who follows this user)
+   ========================= */
+
+const FOLLOWERS_PAGE_SIZE = 200;
+
+async function fetchFollowersPage(userId, page){
+  const qs = new URLSearchParams({ page: String(page), pageSize: String(FOLLOWERS_PAGE_SIZE) });
+  return await apiFetch(`${API.follows}/${userId}/followers?${qs.toString()}`);
+}
+
+let followersUiInited = false;
+
+function initFollowersUi(){
+  if (followersUiInited) return;
+  followersUiInited = true;
+
+  const overlay = $("followersOverlay");
+  const modal = $("followersModal");
+  const closeBtn = $("followersCloseBtn");
+  const list = $("followersModalList");
+
+  if (overlay){
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeFollowersModal();
+    });
+  }
+  if (modal){
+    modal.addEventListener("click", (e) => e.stopPropagation());
+  }
+  if (closeBtn){
+    closeBtn.addEventListener("click", closeFollowersModal);
+  }
+
+  // 點擊名單中的使用者 -> 導入個人頁
+  if (list){
+    list.addEventListener("click", async (e) => {
+      // inline follow button
+      const btn = e.target.closest?.(".inlineFollowBtn");
+      if (btn){
+        e.preventDefault();
+        e.stopPropagation();
+
+        const targetId = Number(btn.dataset.userId || 0);
+        if (!targetId) return;
+
+        const s = getSession();
+        if (!s?.accessToken){
+          goToAuth();
+          return;
+        }
+
+        const followed = (btn.dataset.followed === "1");
+        if (followed){
+          if (!confirm("要取消追蹤嗎？")) return;
+        }
+
+        try{
+          const profileUserId = Number(btn.dataset.profileUserId || 0);
+          await apiFetch(`${API.follows}/${targetId}`, { method: followed ? "DELETE" : "POST" });
+          setFollowStatusCache(targetId, !followed);
+          btn.dataset.followed = (!followed) ? "1" : "0";
+          btn.textContent = (!followed) ? "追蹤中" : "追蹤";
+          btn.classList.toggle("following", !followed);
+          btn.classList.toggle("follow", followed);
+
+          // 若是在自己的個人頁面，追蹤數會變動
+          const meId = Number(getSession()?.user?.userId || 0);
+          if (profileUserId && meId && profileUserId === meId){
+            updateFollowingBtnCount(meId).catch(()=>{});
+          }
+        }catch(err){
+          alert(`更新追蹤失敗：${err.message || err}`);
+        }
+        return;
+      }
+
+      const row = e.target.closest?.(".likeUserRow");
+      if (!row) return;
+      const uid = Number(row.dataset.userId || 0);
+      if (!uid) return;
+      closeFollowersModal();
+      goToProfile(uid);
+    });
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeFollowersModal();
+  });
+}
+
+function openFollowersModal(userId){
+  const overlay = $("followersOverlay");
+  if (!overlay || !userId) return;
+  overlay.classList.add("open");
+  overlay.setAttribute("aria-hidden", "false");
+
+  $("followersModalHeader").textContent = "載入中…";
+  $("followersModalList").innerHTML = "";
+
+  loadFollowersIntoModal(userId).catch(()=>{});
+}
+
+function closeFollowersModal(){
+  const overlay = $("followersOverlay");
+  if (!overlay) return;
+  overlay.classList.remove("open");
+  overlay.setAttribute("aria-hidden", "true");
+}
+
+async function loadFollowersIntoModal(userId){
+  const header = $("followersModalHeader");
+  const listEl = $("followersModalList");
+
+  let page = 1;
+  let all = [];
+  let total = 0;
+
+  while (true){
+    const data = await fetchFollowersPage(userId, page);
+    const items = data.items || [];
+    total = data.total ?? total;
+    all = all.concat(items);
+    if (items.length === 0) break;
+    if (total && all.length >= total) break;
+    page += 1;
+    if (page > 200) break;
+  }
+
+  header.textContent = total ? `粉絲 ${total} 人` : "目前還沒有粉絲";
+  listEl.innerHTML = all.length
+    ? all.map((u) => renderFollowUserRow(u, { showAction: true, profileUserId: userId })).join("")
+    : `<div class="msg" style="display:block;">目前還沒有粉絲</div>`;
+}
+
+async function updateFollowersBtnCount(profileUserId){
+  const btn = $("profileFollowersBtn");
+  if (!btn || !profileUserId) return;
+  try{
+    const data = await apiFetch(`${API.follows}/${profileUserId}/followers?page=1&pageSize=1`, { method: "GET" });
+    const total = Number(data.total ?? 0);
+    btn.textContent = `粉絲 (${total})`;
+  }catch{
+    btn.textContent = "粉絲";
+  }
+}
+
+// 追蹤關係變更後：如果目前正在看該 user 的個人頁，就刷新粉絲按鈕數字
+async function refreshFollowersCountIfViewing(targetUserId){
+  const viewingId = Number(getProfileUserIdFromUrl?.() || 0);
+  if (!viewingId) return;
+  if (Number(targetUserId) !== viewingId) return;
+
+  // 重新抓 total，更新「粉絲 (N)」
+  await updateFollowersBtnCount(viewingId);
+}
+
 async function loadFollowingIntoModal(userId){
   const header = $("followingModalHeader");
   const listEl = $("followingModalList");
@@ -1499,7 +1752,7 @@ async function loadFollowingIntoModal(userId){
 
   header.textContent = total ? `追蹤中 ${total} 人` : "目前沒有追蹤任何人";
   listEl.innerHTML = all.length
-    ? all.map(renderLikeUserRow).join("")
+    ? all.map((u) => renderFollowUserRow(u, { showAction: true, profileUserId: userId })).join("")
     : `<div class="msg" style="display:block;">目前沒有追蹤任何人</div>`;
 }
 
@@ -1533,9 +1786,11 @@ async function syncProfileFollowState(userId){
 
 function initProfileFollowUi(userId){
   initFollowingUi();
+  initFollowersUi();
 
   const followBtn = $("profileFollowBtn");
   const followingBtn = $("profileFollowingBtn");
+  const followersBtn = $("profileFollowersBtn");
 
   if (followBtn && !followBtn.dataset.bound){
     followBtn.dataset.bound = "1";
@@ -1558,6 +1813,8 @@ function initProfileFollowUi(userId){
           await doFollow(userId);
           setFollowBtnState(followBtn, { targetUserId: userId, followedByMe: true });
         }
+
+        await refreshFollowersCountIfViewing(userId);
       }catch(err){
         alert(`操作失敗：${err.message}`);
       }
@@ -1567,6 +1824,11 @@ function initProfileFollowUi(userId){
   if (followingBtn && !followingBtn.dataset.bound){
     followingBtn.dataset.bound = "1";
     followingBtn.addEventListener("click", () => openFollowingModal(userId));
+  }
+
+  if (followersBtn && !followersBtn.dataset.bound){
+    followersBtn.dataset.bound = "1";
+    followersBtn.addEventListener("click", () => openFollowersModal(userId));
   }
 }
 
@@ -2180,6 +2442,7 @@ async function initProfile(){
     initProfileFollowUi(profileUserId);
     await syncProfileFollowState(profileUserId);
     await updateFollowingBtnCount(profileUserId);
+    await updateFollowersBtnCount(profileUserId);
 
     // tabs
     document.getElementById("profileTabPosts")?.addEventListener("click", () => loadProfileTab("posts"));
