@@ -766,10 +766,6 @@ function initLikesUi(){
     closeBtn.addEventListener("click", closeLikesModal);
   }
 
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeLikesModal();
-  });
-
   const listEl = $("likesModalList");
   if (listEl){
     listEl.addEventListener("click", (e) => {
@@ -783,6 +779,10 @@ function initLikesUi(){
       goToProfile(uid);
     });
   }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeLikesModal();
+  });
 }
 
 function openLikesModal(postId){
