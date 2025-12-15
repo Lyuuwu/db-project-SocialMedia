@@ -338,6 +338,11 @@ function getProfileUserIdFromUrl(){
   return Number(qs.get("userId") || 0);
 }
 
+function setProfileBottomNavActive(isMe){
+  const navMe = document.getElementById("navMe");
+  if (!navMe) return;
+  navMe.classList.toggle("active", !!isMe);
+}
 
 // =========================
 // HTTP helpers
@@ -3250,6 +3255,13 @@ async function initProfile(){
 
     // default tab
     await loadProfileTab("posts");
+
+    // 如果是自己的個人頁面
+    // 就把最底下的 Me button 點亮
+    const s = getSession();
+    const myId = Number(s?.user?.userId || 0);
+    const isMe = (myId > 0 && profileUserId === myId);
+    setProfileBottomNavActive(isMe);
   }catch(e){
   }
 }
