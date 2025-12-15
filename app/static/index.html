@@ -36,12 +36,7 @@
       </div>
 
       <div class="rightTop">
-        <div class="statusPill">
-          <div id="apiDot" class="dot"></div>
-          <span id="apiText">尚未測試後端連線</span>
-        </div>
-
-        <!-- ✅ 右上角帳號區 -->
+<!-- ✅ 右上角帳號區 -->
         <div class="accountArea" id="accountArea">
           <!-- 未登入：顯示按鈕 -->
           <button id="loginNavBtn" class="btn primary small" onclick="goToAuth()">登入 / 註冊</button>
@@ -67,7 +62,7 @@
     </div>
 
     <div class="card">
-      <div class="head">
+      <div class="head" id="mainHead">
         <div>
           <h2 id="pageTitle">首頁｜最新貼文</h2>
           <p id="pageDesc">顯示所有貼文，依 發文時間 由新到舊排序。</p>
@@ -82,7 +77,6 @@
             <button class="btn" id="searchBtn" onclick="performSearch()">搜尋</button>
           </div>
           <button class="btn" onclick="loadPosts()">刷新</button>
-          <button class="btn ghost" onclick="pingBackend()">測試後端</button>
         </div>
       </div>
 
@@ -115,65 +109,17 @@
         </div>
 
 
-        <!-- CREATE -->
-        <div id="pageCreate" style="display:none;">
-          <div class="card" style="box-shadow:none; background:rgba(255,255,255,.05); border-radius:16px;">
-            <div class="head" style="border-bottom:1px solid rgba(255,255,255,.10);">
-              <div>
-                <h2>發佈貼文</h2>
-                <p>內容＋本機圖片（可選）。送出後會切回 Home。</p>
-              </div>
-              <div class="badge" id="whoami">未登入</div>
-            </div>
+        
 
-            <div class="body">
-              <div class="formGrid">
-                <label>圖片</label>
-                <div>
-                  <input id="postFile" type="file" accept="image/*" />
-                  <div class="miniRow">
-                    <span>選擇你裝置中的圖片（可留空）</span>
-                    <span class="chip" onclick="clearPostImage()">清除</span>
-                  </div>
-
-                  <div id="previewBox" style="margin-top:10px; display:none;">
-                    <div class="badge" style="margin-bottom:6px;">圖片預覽</div>
-                    <img id="previewImg"
-                      style="width:100%; max-height:420px; object-fit:cover;
-                            border-radius:14px; border:1px solid rgba(255,255,255,.15);" />
-                  </div>
-                </div>
-              </div>
-
-              <div class="formGrid">
-                <label>內容*</label>
-                <div>
-                  <textarea id="postContent" maxlength="500" placeholder="想說些什麼？"></textarea>
-                  <div class="miniRow">
-                    <span id="charCount">0 / 500</span>
-                    <span class="badge">POST /api/v1/posts</span>
-                  </div>
-                </div>
-              </div>
-
-              <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
-                <button class="btn primary" onclick="createPost()">發佈</button>
-                <button class="btn ghost" onclick="showPage('home')">回到首頁</button>
-              </div>
-
-              <div id="postMsg" class="msg"></div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
 
   <!-- Bottom Nav -->
   <div class="bottomNav">
-    <button class="navItem active" id="navHome" onclick="showPage('home')">🏠 <span>Home</span></button>
+    <button class="navItem active" id="navHome" onclick="location.href='/'">🏠 <span>Home</span></button>
     <button class="navItem" id="navMe" onclick="goToMyProfile()">👤 <span>Me</span></button>
-    <button class="navItem" id="navCreate" onclick="showPage('create')">➕ <span>Create</span></button>
+    <button class="navItem" id="navCreate" onclick="location.href='/create'">➕ <span>Create</span></button>
   </div>
 </body>
 </html>

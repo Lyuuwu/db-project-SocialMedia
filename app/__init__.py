@@ -1,7 +1,6 @@
 from flask import Flask
 from .config import Config
 from .routes.pages import bp as pages_bp
-from .routes.health import bp as health_bp
 from .routes.auth import bp as auth_bp
 from .routes.users import bp as users_bp
 from .routes.posts import bp as posts_bp
@@ -15,7 +14,6 @@ def create_app():
 
     # routes
     app.register_blueprint(pages_bp)
-    app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(users_bp)
     app.register_blueprint(posts_bp)

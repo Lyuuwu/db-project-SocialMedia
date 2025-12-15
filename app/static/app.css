@@ -1,4 +1,9 @@
 /* static/app.css */
+/* =========================
+   app.css (整理版)
+   - 只調整排列/註解/排版，功能不變
+   ========================= */
+
 :root{
   --bg1:#0b1020; --bg2:#111827;
   --glass1: rgba(255,255,255,.11);
@@ -24,6 +29,10 @@ body{
     linear-gradient(135deg, var(--bg1), var(--bg2));
 }
 .wrap{ max-width:1100px; margin:0 auto; padding:18px 16px 90px; }
+
+/* =========================
+   Base / Layout
+   ========================= */
 
 /* top */
 .topbar{
@@ -59,17 +68,9 @@ body{
 .brand h1{ margin:0; font-size:16px; line-height:1.1; }
 .brand p{ margin:4px 0 0; font-size:12px; color:var(--muted); }
 
-.statusPill{
-  display:flex; align-items:center; gap:10px;
-  border:1px solid var(--stroke);
-  background: rgba(255,255,255,.06);
-  padding:10px 12px; border-radius:999px;
-  backdrop-filter: blur(10px);
-}
-.dot{ width:10px; height:10px; border-radius:999px; background:rgba(255,255,255,.25); }
-.dot.ok{ background: rgba(52,211,153,.9); }
-.dot.err{ background: rgba(251,113,133,.9); }
-.statusPill span{ font-size:12px; color:var(--muted); white-space:nowrap; }
+/* =========================
+   Cards / Containers
+   ========================= */
 
 /* cards */
 .card{
@@ -166,9 +167,14 @@ body{
 
 .hint{ margin-top:10px; font-size:12px; color:var(--muted); line-height:1.45; }
 
+/* =========================
+   Feed / Post UI
+   ========================= */
+
 /* feed */
 .feed{ display:flex; flex-direction:column; gap:12px; padding:14px 16px 18px; }
 .postCard{
+  scroll-margin-top: 90px;
   border:1px solid rgba(255,255,255,.14);
   background: rgba(255,255,255,.06);
   border-radius: var(--r2);
@@ -202,7 +208,7 @@ body{
   white-space:pre-wrap; word-break:break-word;
 }
 .imgWrap{ border-top:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.12); }
-.imgWrap img{ width:100%; display:block; max-height: 460px; object-fit: cover; }
+.imgWrap img{ width:100%; display:block; max-height: 460px; object-fit: contain; }
 /* footer：左 likes / 中 留言 / 右 actions，永遠置中不受右側寬度影響 */
 .footerBar{
   padding:10px 12px 12px;
@@ -217,6 +223,10 @@ body{
 .footerBar > :nth-child(1){ justify-self:start; }
 .footerBar > :nth-child(2){ justify-self:center; }
 .footerBar > :nth-child(3){ justify-self:end; }
+
+/* =========================
+   Comments UI
+   ========================= */
 
 /* comments */
 .commentsWrap{ padding: 0 12px 12px; }
@@ -277,6 +287,10 @@ body{
 .commentAvatar{ object-fit:cover; display:block; }
 .commentFallback{ display:grid; place-items:center; font-weight:900; color: rgba(255,255,255,.88); }
 
+/* =========================
+   Create page
+   ========================= */
+
 /* create page */
 .formGrid{
   display:grid;
@@ -318,6 +332,10 @@ input::placeholder, textarea::placeholder{ color: rgba(255,255,255,.35); }
   user-select:none;
   cursor:pointer;
 }
+
+/* =========================
+   Modal / Overlay
+   ========================= */
 
 /* modal */
 .overlay{
@@ -379,6 +397,10 @@ input::placeholder, textarea::placeholder{ color: rgba(255,255,255,.35); }
 }
 .modalBody{ padding:12px 16px 16px; }
 
+/* =========================
+   Bottom navigation
+   ========================= */
+
 /* bottom nav */
 .bottomNav{
   position: fixed;
@@ -419,6 +441,10 @@ input::placeholder, textarea::placeholder{ color: rgba(255,255,255,.35); }
 }
 
 code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 11px; }
+
+/* =========================
+   Account (top-right avatar menu)
+   ========================= */
 
 /* ===== account (top-right) ===== */
 .rightTop{
@@ -557,6 +583,10 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   display:flex;
   justify-content:flex-end;
 }
+
+/* =========================
+   Auth page
+   ========================= */
 
 /* ===== auth page layout ===== */
 .authCard{
@@ -1154,9 +1184,41 @@ code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liber
   box-sizing: border-box;
 }
 
+.profileSettingsRow{
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
 .profileSettingsBtn{
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 2;
+  position: static;
+  z-index: auto;
+}
+
+
+/* ===== Create page standalone ===== */
+.createPanel{
+  border:none;
+  background: rgba(255,255,255,.05);
+  border-radius: 18px;
+  box-shadow: none;
+  overflow:hidden;
+
+  /* keep the same visual layout as the old embedded Create panel */
+  width: 100%;
+  max-width: 860px;
+  margin: 10px auto 0;
+}
+
+.createHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+.createBody{
+  padding: 16px;
 }

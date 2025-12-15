@@ -11,3 +11,7 @@ def index():
 @bp.get("/u/<int:user_id>")
 def profile_page(user_id: int):
     return current_app.send_static_file("profile.html")
+
+@bp.get("/create")
+def create_page():
+    return current_app.send_static_file("create.html")

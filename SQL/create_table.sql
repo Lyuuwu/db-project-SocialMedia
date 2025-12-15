@@ -12,6 +12,7 @@ create table users(
 	pwd				varchar(255) not null,
 	bio				nvarchar(1024) null,
 	profile_pic		nvarchar(1024) null,
+	banner_pic		nvarchar(1024) null,
 	user_name		nvarchar(50) not null,
 
 	constraint PK_users primary key (user_id),
@@ -55,7 +56,7 @@ create table comment(
 	post_id		int not null,
 	content		nvarchar(1024),
 	created_at datetime2(0) not null constraint DF_comment_time default (sysdatetime()),
-	update_at  datetime2(0) null,
+	updated_at  datetime2(0) null,
 
 	constraint PK_comment primary key (comment_id),
 	constraint FK_comment_user foreign key (user_id) references users(user_id) on delete no action,

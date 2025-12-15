@@ -1,10 +1,10 @@
-// ✅ 建議：同源部署時，直接用 location.origin，避免 https 頁面去抓 http API（Mixed Content）
-// 若你要改成「前後端不同網域」，才把 BASE_URL 換成 "https://..."。
-const BASE_URL = ""; // 例如："https://xxxx.ngrok-free.dev"（不要尾斜線）
-const AUTH_PAGE_URL = "/static/auth.html"; // Flask 靜態頁面路徑（需要就改）
+// =========================
+// Config / API endpoints
+// =========================
+const BASE_URL = location.origin;
+const AUTH_PAGE_URL = "/static/auth.html";
 
 const API = {
-  ping: "/db_test",
   register: "/api/v1/auth/register",
   login: "/api/v1/auth/login",
   refresh: "/api/v1/auth/refresh",
@@ -17,6 +17,10 @@ const API = {
   upload: "/api/upload"
 };
 
+
+// =========================
+// Global state (in-memory)
+// =========================
 let postsCache = [];
 const $ = (id) => document.getElementById(id);
 
@@ -49,15 +53,14 @@ const LIKES_HOVER_LIMIT = 8;
 
 let likesHoverState = { postId: null, isOpen: false };
 
-// 如果你本來就有 tooltip 狀態，就把這兩個變數對應到你的即可
-// ✅ 每篇貼文 likes 名單的版本號：避免舊 request 回來把舊資料塞回快取
+// 每篇貼文 likes 名單的版本號：避免舊 request 回來把舊資料塞回快取
 const likesPreviewVer = new Map(); // postId -> integer
 
 function bumpLikesPreviewVer(postId){
   likesPreviewVer.set(postId, (likesPreviewVer.get(postId) || 0) + 1);
 }
 
-// ✅ 核心：清掉某篇貼文的 hover 名單快取，避免顯示舊資料
+// 清掉某篇貼文的 hover 名單快取，避免顯示舊資料
 function invalidateLikesPreview(postId){
   likesPreviewCache.delete(postId);
   bumpLikesPreviewVer(postId);
@@ -69,6 +72,9 @@ function invalidateLikesPreview(postId){
 }
 
 
+// =========================
+// Utils
+// =========================
 function showMsg(el, type, text){
   if (!el) return;
   el.className = "msg " + (type || "");
@@ -76,14 +82,6 @@ function showMsg(el, type, text){
   el.style.display = text ? "block" : "none";
 }
 
-function setApiStatus(ok, text){
-  const dot = $("apiDot");
-  const t = $("apiText");
-  if (!dot || !t) return;
-  dot.classList.remove("ok","err");
-  dot.classList.add(ok ? "ok" : "err");
-  t.textContent = text;
-}
 
 function escapeHtml(str){
   return String(str ?? "")
@@ -100,7 +98,10 @@ function fmtTime(t){
   }catch{ return ""; }
 }
 
-/* ===== session ===== */
+
+// =========================
+// Session / account UI
+// =========================
 function getSession(){
   const raw = localStorage.getItem("miniig_session");
   return raw ? JSON.parse(raw) : null; // { accessToken, user }
@@ -115,7 +116,7 @@ function setSession(session){
 
   const nextMe = Number(session?.user?.userId || 0);
 
-  // ✅ 登入狀態改變時，追蹤名單快取要一起重置（主頁「追蹤」分頁會用到）
+  // 登入狀態改變時，追蹤名單快取要一起重置（主頁「追蹤」分頁會用到）
   if (!nextMe || prevMe !== nextMe){
     resetMyFollowingCache();
   }else{
@@ -171,7 +172,7 @@ function syncWhoAmI(){
   if (!el) return;
   const s = getSession();
   const u = s?.user;
-  el.textContent = u ? (u.userName || u.email || "已登入") : "未登入";
+  el.textContent = u ? ("目前帳號: " + (u.userName || u.email || "已登入")) : "未登入";
 }
 
 function initialsFromUser(u){
@@ -250,7 +251,10 @@ function initTopRightAvatarNav(){
   });
 }
 
-/* ===== navigation to auth page ===== */
+
+// =========================
+// Navigation helpers
+// =========================
 function safeNextUrl(){
   const params = new URLSearchParams(location.search);
   const next = params.get("next");
@@ -334,7 +338,10 @@ function getProfileUserIdFromUrl(){
   return Number(qs.get("userId") || 0);
 }
 
-/* ===== API helper ===== */
+
+// =========================
+// HTTP helpers
+// =========================
 async function apiFetch(path, options = {}){
   const { _retry, ...rest } = options;
 
@@ -350,7 +357,7 @@ async function apiFetch(path, options = {}){
   let data = null;
   try { data = await res.json(); } catch { data = null; }
 
-  // ✅ 如果是 401，而且使用者「以為自己是登入狀態」，就嘗試 refresh 再重試一次
+  // 如果是 401，而且使用者「以為自己是登入狀態」，就嘗試 refresh 再重試一次
   if (res.status === 401 && !_retry && getSession()?.accessToken){
     const ok = await refreshAccessToken();
     if (ok){
@@ -421,17 +428,10 @@ async function ensureMyFollowingSet({ force = false } = {}){
   return myFollowingLoading;
 }
 
-/* ===== backend ping ===== */
-async function pingBackend(){
-  try{
-    const data = await apiFetch(API.ping, { method:"GET" });
-    setApiStatus(true, `後端 OK：${data?.db ?? data?.db_name ?? "db"} / ${data?.login ?? data?.login_name ?? "login"}`);
-  }catch(e){
-    setApiStatus(false, `後端失敗：${e.message}`);
-  }
-}
 
-/* ===== auth page UI ===== */
+// =========================
+// Auth page
+// =========================
 function uiSetAuthTab(tab){
   const isLogin = (tab === "login");
   const tabLogin = $("tabLogin");
@@ -504,7 +504,7 @@ async function register(){
     }
 
     showMsg(msg, "ok", "註冊成功並已登入！");
-    // ✅ 登入後回到上一頁
+    // 登入後回到上一頁
     setTimeout(()=> goBackFromAuth(), 350);
 
   }catch(e){
@@ -529,7 +529,7 @@ async function login(){
     setSession({ accessToken: data.accessToken, user: data.user });
 
     showMsg(msg, "ok", `登入成功：${data.user.userName || data.user.email}`);
-    // ✅ 登入後回到上一頁
+    // 登入後回到上一頁
     setTimeout(()=> goBackFromAuth(), 350);
 
   }catch(e){
@@ -553,18 +553,25 @@ async function logout(){
 }
 
 
-/* ===== pages (home/create) ===== */
+// =========================
+// Home / Create (page toggles & UI)
+// =========================
 function showPage(which){
   const isHome = (which === "home");
   const pageHome = $("pageHome");
   const pageCreate = $("pageCreate");
   const navHome = $("navHome");
   const navCreate = $("navCreate");
+  const mainHead = $("mainHead");
 
   if (pageHome) pageHome.style.display = isHome ? "block" : "none";
   if (pageCreate) pageCreate.style.display = isHome ? "none" : "block";
   if (navHome) navHome.classList.toggle("active", isHome);
   if (navCreate) navCreate.classList.toggle("active", !isHome);
+
+  // Create 頁不需要外框（title/desc/search controls）
+  // 用 CSS 預設樣式顯示（不要硬寫 flex），Create 頁則隱藏
+  if (mainHead) mainHead.style.display = isHome ? "" : "none";
 
   const pageTitle = $("pageTitle");
   const pageDesc = $("pageDesc");
@@ -687,7 +694,10 @@ async function uploadImageIfNeeded(){
   return data?.url || "";
 }
 
-/* posts */
+
+// =========================
+// Posts
+// =========================
 async function loadPosts(opts = {}){
   try{
     const authorIds = (opts?.authorIds || "").trim();
@@ -701,7 +711,7 @@ async function loadPosts(opts = {}){
       return tb - ta;
     });
 
-    // ✅ 建議：整批更新後把 hover 快取清掉
+    // 整批更新後把 hover 快取清掉
     likesPreviewCache.clear();
     likesHoverState = { postId: null, isOpen: false };
     hideLikesPopover();
@@ -712,9 +722,7 @@ async function loadPosts(opts = {}){
     }
 
     renderFeed();
-    setApiStatus(true, "後端連線正常");
   }catch(e){
-    setApiStatus(false, `抓貼文失敗：${e.message}`);
   }
 }
 
@@ -734,17 +742,27 @@ async function createPost(){
 
   try{
     showMsg(msg, "", "正在上傳/送出...");
+
     const pictureUrl = await uploadImageIfNeeded();
 
-    await apiFetch(API.posts, {
+    const created = await apiFetch(API.posts, {
       method:"POST",
       body: JSON.stringify({ content, picture: pictureUrl })
     });
 
     showMsg(msg, "ok", "發佈成功！");
-    $("postContent").value = "";
+    if ($("postContent")) $("postContent").value = "";
     clearPostImage();
     updateCharCount();
+
+    // 若在獨立的 create.html，發文後回到 Home
+    if (document.body?.dataset?.page === "create"){
+      const pid = Number(created?.postId || created?.id || 0);
+      location.href = pid ? (`/?postId=${pid}`) : "/";
+      return;
+    }
+
+    // 舊版（同頁切換）仍保留
     showPage("home");
     await loadPosts();
   }catch(e){
@@ -752,9 +770,12 @@ async function createPost(){
   }
 }
 
-// ===== likes preview / modal settings =====
-const LIKES_PREVIEW_LIMIT = 5; // 想要 10 就改成 10
-const LIKES_PAGE_SIZE = 200;   // modal 分頁一次拿幾個（後端有上限 200）
+
+// =========================
+// Likes (hover preview + modal)
+// =========================
+const LIKES_PREVIEW_LIMIT = 5;  // Likes hover 預覽最多幾人
+const LIKES_PAGE_SIZE = 200;    // modal 分頁一次拿幾個（後端有上限 200）
 
 let likesPopoverEl = null;
 let likesHideTimer = null;
@@ -944,13 +965,13 @@ async function showLikesPreview(anchorEl){
   pop.querySelector(".likesPopoverTitle").textContent = "載入中…";
   pop.querySelector(".likesPopoverList").innerHTML = "";
 
-  // ✅ 這次顯示的 request id
+  // 這次顯示的 request id
   const reqId = ++likesPreviewReqSeq;
 
   try{
     const data = await fetchLikesPreview(postId);
 
-    // ✅ 如果途中又觸發其他 hover / 或 popover 已切到別篇，就不要用舊結果覆蓋 UI
+    // 如果途中又觸發其他 hover / 或 popover 已切到別篇，就不要用舊結果覆蓋 UI
     if (reqId !== likesPreviewReqSeq) return;
     if (activeLikesPostId !== postId) return;
 
@@ -1099,7 +1120,9 @@ async function loadAllLikesIntoModal(postId){
 }
 
 
-// ===== user search UI =====
+// =========================
+// Search (users / posts)
+// =========================
 function setSearchMode(mode){
   searchMode = (mode === "posts") ? "posts" : "users";
   if (searchMode === "users"){
@@ -1489,7 +1512,7 @@ function renderFeed(){
 
   let base = (postsCache || []);
 
-  // ✅ 主頁「追蹤」分頁：只顯示「你追蹤的人 + 自己」的貼文
+  // 主頁「追蹤」分頁：只顯示「你追蹤的人 + 自己」的貼文
   if (homeFeedMode === "following"){
     const meId = getMeId();
 
@@ -1671,14 +1694,13 @@ async function toggleLike(postId){
     p.likedByMe = !!data.liked;
     p.likes = data.likes ?? p.likes;
 
-    // ✅ 關鍵：清掉 hover 名單快取，避免顯示舊資料
+    // 清掉 hover 名單快取，避免顯示舊資料
     invalidateLikesPreview(postId);
 
     // 重新渲染畫面
     renderFeed();
     }catch(e){
-    setApiStatus(false, `更新 like 失敗：${e.message}`);
-    }
+}
 }
 
 async function deletePost(postId){
@@ -1703,10 +1725,8 @@ async function deletePost(postId){
 
     // 重畫
     renderFeed();
-    setApiStatus(true, "已刪除貼文");
-  }catch(e){
-    setApiStatus(false, `刪除貼文失敗：${e.message}`);
-  }
+}catch(e){
+}
 }
 
 async function deleteComment(commentId, postId){
@@ -1724,18 +1744,14 @@ async function deleteComment(commentId, postId){
     // 直接強制重抓，讓 commentCount / 已編輯標記等都一致
     invalidateComments(postId);
     await loadComments(postId, { force: true });
-
-    setApiStatus(true, "已刪除留言");
-  }catch(e){
-    setApiStatus(false, `刪除留言失敗：${e.message}`);
-  }
+}catch(e){
+}
 }
 
 
-/* =========================
-   Comments
-   ========================= */
-
+// =========================
+// Comments (per post)
+// =========================
 const commentsOpenSet = new Set(); // postId
 const commentsCache = new Map();   // postId -> {ts, data}
 const COMMENTS_CACHE_MS = 15000;
@@ -2024,9 +2040,10 @@ function initCommentsUi(){
   });
 }
 
-/* =========================
-   Follow (for user popover)
-   ========================= */
+
+// =========================
+// Follow (status/cache + operations)
+// =========================
 const FOLLOW_CACHE_MS = 15000;
 const followStatusCache = new Map(); // userId -> {ts, followedByMe}
 
@@ -2095,9 +2112,10 @@ function setFollowBtnState(btn, { targetUserId, followedByMe }){
   }
 }
 
-/* =========================
-   Following list (profile)
-   ========================= */
+
+// =========================
+// Profile follow lists (following/followers modals)
+// =========================
 const FOLLOWING_PAGE_SIZE = 200;
 
 async function fetchFollowingPage(userId, page){
@@ -2480,9 +2498,10 @@ function initProfileFollowUi(userId){
   }
 }
 
-/* =========================
-   User popover (upgrade)
-   ========================= */
+
+// =========================
+// User popover (hover card)
+// =========================
 const USER_PREVIEW_CACHE_MS = 30000;
 const userPreviewCache = new Map(); // userId -> {ts, data}
 
@@ -2519,7 +2538,7 @@ function ensureUserPopover(){
   });
   userPopoverEl.addEventListener("pointerleave", () => scheduleHideUserPopover());
 
-  // ✅ 追蹤按鈕 click
+  // 追蹤按鈕 click
   userPopoverEl.addEventListener("click", async (e) => {
     const btn = e.target.closest?.("#userFollowBtn");
     if (!btn) return;
@@ -2691,6 +2710,23 @@ async function showUserPopover(anchorEl){
 }
 
 
+// =========================
+// Create page
+// =========================
+function initCreate(){
+  syncWhoAmI();
+  syncAccountUI();
+  initTopRightAvatarNav();
+
+  // create page UI
+  updateCharCount();
+  bindFilePreview();
+
+  const postContent = $("postContent");
+  if (postContent) postContent.addEventListener("input", updateCharCount);
+}
+
+
 function initAuthorHoverUi(){
   const feed = $("feed");
   if (!feed) return;
@@ -2723,6 +2759,10 @@ function initAuthorHoverUi(){
   });
 }
 
+
+// =========================
+// Small helpers
+// =========================
 /* helpers */
 function updateCharCount(){
   const v = $("postContent")?.value || "";
@@ -2733,9 +2773,75 @@ function updateCharCount(){
 function scrollToPost(postId){
   const el = document.querySelector(`.postCard[data-post-id="${postId}"]`);
   if (!el) return;
+
+  // 先 smooth 滾到目標貼文
   el.scrollIntoView({ behavior:"smooth", block:"start" });
+
+  // 圖片載入會造成版面高度改變，導致剛滾到的定位被「推走」
+  // 這裡在短時間內監聽圖片 load / layout resize，並在需要時重新校正 scroll
+  const startAt = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+  const maxMs = 2500;
+
+  let rafScheduled = false;
+  let stopped = false;
+
+  const instantFix = () => {
+    if (stopped) return;
+    if (rafScheduled) return;
+    rafScheduled = true;
+    requestAnimationFrame(() => {
+      rafScheduled = false;
+      // 用 auto 重新校正位置，避免多次 smooth 造成抖動
+      el.scrollIntoView({ behavior:"auto", block:"start" });
+    });
+  };
+
+  // 監聽 feed 內的圖片（任何在目標上方的圖片載入都可能改變 offset）
+  const imgs = Array.from(document.querySelectorAll(".feed img"));
+  const onImgDone = () => instantFix();
+  for (const img of imgs){
+    if (!img.complete){
+      img.addEventListener("load", onImgDone, { once:true });
+      img.addEventListener("error", onImgDone, { once:true });
+    }
+  }
+
+  // 監聽 layout 變動（支援的瀏覽器會更穩）
+  let ro = null;
+  try{
+    if ("ResizeObserver" in window){
+      ro = new ResizeObserver(() => instantFix());
+      const feed = document.getElementById("feed");
+      ro.observe(feed || el);
+    }
+  }catch(_e){ ro = null; }
+
+  const tick = setInterval(() => {
+    const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    const elapsed = now - startAt;
+
+    if (elapsed > maxMs){
+      stopped = true;
+      clearInterval(tick);
+      if (ro) ro.disconnect();
+      return;
+    }
+
+    const pending = imgs.some(im => !im.complete);
+    if (!pending){
+      // 圖片都載入後再做一次最後校正就收工
+      instantFix();
+      stopped = true;
+      clearInterval(tick);
+      if (ro) ro.disconnect();
+    }
+  }, 120);
 }
 
+
+// =========================
+// Boot
+// =========================
 /* ===== init ===== */
 function initHome(){
   syncWhoAmI();
@@ -2755,9 +2861,7 @@ function initHome(){
 
   const postContent = $("postContent");
   if (postContent) postContent.addEventListener("input", updateCharCount);
-
-  pingBackend();
-  const params = new URLSearchParams(location.search);
+const params = new URLSearchParams(location.search);
   const focusPostId = Number(params.get("postId") || 0);
 
   loadPosts()
@@ -2767,7 +2871,6 @@ function initHome(){
 
 function initAuth(){
   uiSetAuthTab("login");
-  pingBackend();
 }
 
 let profileUser = null;
@@ -2969,7 +3072,6 @@ async function saveProfileSettings(){
     }
 
 
-
     if (bf){
       const fd2 = new FormData();
       fd2.append("file", bf);
@@ -3102,6 +3204,10 @@ function initProfileCommentsActions(){
   });
 }
 
+
+// =========================
+// Profile page
+// =========================
 async function initProfile(){
   syncWhoAmI();
   syncAccountUI();
@@ -3113,12 +3219,8 @@ async function initProfile(){
   initAuthorHoverUi();
   initCommentsUi();
   initProfileCommentsActions();
-
-  pingBackend();
-
   profileUserId = getProfileUserIdFromUrl();
   if (!profileUserId){
-    setApiStatus(false, "缺少 userId");
     return;
   }
 
@@ -3148,11 +3250,7 @@ async function initProfile(){
 
     // default tab
     await loadProfileTab("posts");
-
-    setApiStatus(true, "Profile OK");
-
   }catch(e){
-    setApiStatus(false, `Profile 讀取失敗：${e.message}`);
   }
 }
 
@@ -3161,4 +3259,5 @@ async function initProfile(){
   if (page === "home") initHome();
   if (page === "auth") initAuth();
   if (page === "profile") initProfile();
+  if (page === "create") initCreate();
 })();

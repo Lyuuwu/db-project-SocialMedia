@@ -104,12 +104,7 @@
       </div>
 
       <div class="rightTop">
-        <div class="statusPill">
-          <div id="apiDot" class="dot"></div>
-          <span id="apiText">尚未測試後端連線</span>
-        </div>
-
-        <div class="accountArea" id="accountArea">
+<div class="accountArea" id="accountArea">
           <button id="loginNavBtn" class="btn primary small" onclick="goToAuth()">登入 / 註冊</button>
 
           <div id="avatarMenu" class="avatarMenu" style="display:none;">
@@ -138,9 +133,6 @@
         <div class="profileHero">
           <!-- Banner layer (behind avatar / name) -->
           <div id="profileBanner" class="profileBannerLayer" aria-label="banner"></div>
-
-          <button id="profileSettingsBtn" class="btn ghost small profileSettingsBtn" style="display:none;">⚙️ 設定</button>
-          
           <div class="profileHeroInner">
             <div class="profileAvatarWrap">
               <img id="profileAvatarImg" class="profileAvatarImg" alt="avatar" style="display:none;" />
@@ -149,8 +141,9 @@
 
             <div class="profileName" id="profileName">—</div>
             <div class="profileEmail" id="profileEmail"></div>
-
-            <button id="profileSettingsBtn" class="btn ghost small" style="display:none;">⚙️ 設定</button>
+            <div class="profileSettingsRow">
+              <button id="profileSettingsBtn" class="btn ghost small profileSettingsBtn" style="display:none;">⚙️ 設定</button>
+            </div>
           </div>
         </div>
 
@@ -187,5 +180,11 @@
     </div>
   </div>
 
+  <!-- Bottom Nav -->
+  <div class="bottomNav">
+    <button class="navItem active" id="navHome" onclick="location.href='/'">🏠 <span>Home</span></button>
+    <button class="navItem" id="navMe" onclick="goToMyProfile()">👤 <span>Me</span></button>
+    <button class="navItem" id="navCreate" onclick="location.href='/create'">➕ <span>Create</span></button>
+  </div>
 </body>
 </html>
