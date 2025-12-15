@@ -26,13 +26,6 @@
     </div>
 
     <div class="card authCard">
-      <div class="head">
-        <div>
-          <h2>帳號</h2>
-          <p>登入或註冊後會寫入 localStorage（miniig_session）。</p>
-        </div>
-      </div>
-
       <div class="body">
         <div class="tabs authTabs">
           <div id="tabLogin" class="tab active" onclick="uiSetAuthTab('login')">登入</div>
@@ -52,13 +45,9 @@
 
           <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <button class="btn primary" onclick="login()">登入</button>
-            <button class="btn" onclick="pingBackend()">測試後端</button>
           </div>
 
           <div id="authMsg" class="msg"></div>
-          <div class="hint">
-            登入：<code>POST /api/v1/auth/login</code> body：<code>{email, password}</code>
-          </div>
         </div>
 
         <!-- REGISTER -->
@@ -71,18 +60,9 @@
 
           <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
             <button class="btn primary" onclick="register()">註冊</button>
-            <button class="btn" onclick="pingBackend()">測試後端</button>
           </div>
 
           <div id="regMsg" class="msg"></div>
-          <div class="hint">
-            註冊：<code>POST /api/v1/auth/register</code> body：<code>{email, password, userName}</code><br/>
-            之後會用 <code>POST /api/upload</code> 上傳頭像，再用 <code>PATCH /api/v1/users/me</code> 更新 bio / profilePic（若有選檔）。
-          </div>
-        </div>
-
-        <div class="hint" style="margin-top:14px;">
-          提示：你可以用 URL 帶 next：<code>/static/auth.html?next=/</code>
         </div>
       </div>
     </div>
