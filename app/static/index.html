@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini IG Demo</title>
+
+  <link rel="stylesheet" href="/static/app.css" />
+  <script src="/static/app.js" defer></script>
+</head>
+
+<!-- Likes Modal -->
+<div id="likesOverlay" class="overlay" aria-hidden="true">
+  <div id="likesModal" class="modal likesModal" role="dialog" aria-modal="true" aria-label="Likes list">
+    <div class="modalTop">
+      <div style="font-weight:900;">按讚的人</div>
+      <button id="likesCloseBtn" class="closeBtn" type="button" aria-label="Close">✕</button>
+    </div>
+    <div class="modalBody">
+      <div id="likesModalHeader" class="likesModalHeader"></div>
+      <div id="likesModalList" class="likesList"></div>
+    </div>
+  </div>
+</div>
+
+
+<body data-page="home">
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">MI</div>
+        <div>
+          <h1>Mini IG Demo</h1>
+          <p>Home 看最新貼文 | Create 發文</p>
+        </div>
+      </div>
+
+      <div class="rightTop">
+<!-- ✅ 右上角帳號區 -->
+        <div class="accountArea" id="accountArea">
+          <!-- 未登入：顯示按鈕 -->
+          <button id="loginNavBtn" class="btn primary small" onclick="goToAuth()">登入 / 註冊</button>
+
+          <!-- 已登入：顯示頭像 + hover popover -->
+          <div id="avatarMenu" class="avatarMenu" style="display:none;">
+            <img id="avatarImg" class="avatarImg" alt="avatar" />
+            <div id="avatarFallback" class="avatarFallback" aria-hidden="true">U</div>
+
+            <div class="avatarPopover">
+              <div class="popHeader">
+                <div class="popName" id="popName">—</div>
+                <div class="popEmail" id="popEmail">—</div>
+              </div>
+              <div class="popBio" id="popBio"></div>
+              <div class="popActions">
+                <button class="btn danger small" onclick="logout()">登出</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="head" id="mainHead">
+        <div>
+          <h2 id="pageTitle">首頁｜最新貼文</h2>
+          <p id="pageDesc">顯示所有貼文，依 發文時間 由新到舊排序。</p>
+        </div>
+        <div class="feedControls">
+          <div class="searchGroup">
+            <select id="searchMode" class="searchMode" onchange="onSearchModeChange()">
+              <option value="users">搜尋用戶</option>
+              <option value="posts">搜尋貼文</option>
+            </select>
+            <input id="search" class="search" placeholder="輸入用戶名稱 / Email / Bio…" oninput="onSearchInput()" />
+            <button class="btn" id="searchBtn" onclick="performSearch()">搜尋</button>
+          </div>
+          <button class="btn" onclick="loadPosts()">刷新</button>
+        </div>
+      </div>
+
+      <div class="body">
+        <!-- HOME -->
+        <div id="pageHome">
+          
+          <!-- User search result (Twitter-like horizontal list) -->
+          <div id="userSearchSection" class="userSearchSection" style="display:none;">
+            <div class="userSearchBar">
+              <div class="userSearchLabel">符合條件的用戶</div>
+              <div class="userSearchNav">
+                <button type="button" id="userPrevBtn" class="iconBtn" aria-label="prev">◀</button>
+                <button type="button" id="userNextBtn" class="iconBtn" aria-label="next">▶</button>
+              </div>
+            </div>
+            <div id="userCarouselWrap" class="userCarouselWrap">
+              <div id="userCarousel" class="userCarousel" aria-label="user results"></div>
+            </div>
+          </div>
+
+<div class="feedTabs" id="feedTabs">
+            <div class="feedTabsInner">
+              <button type="button" class="feedTab following" id="feedTabFollowing" data-mode="following">追蹤</button>
+              <button type="button" class="feedTab all active" id="feedTabAll" data-mode="all">全部</button>
+            </div>
+          </div>
+
+          <div class="feed" id="feed"></div>
+        </div>
+
+
+        
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Nav -->
+  <div class="bottomNav">
+    <button class="navItem active" id="navHome" onclick="location.href='/'">🏠 <span>Home</span></button>
+    <button class="navItem" id="navMe" onclick="goToMyProfile()">👤 <span>Me</span></button>
+    <button class="navItem" id="navCreate" onclick="location.href='/create'">➕ <span>Create</span></button>
+  </div>
+</body>
+</html>

@@ -1,0 +1,1224 @@
+/* static/app.css */
+/* =========================
+   app.css (整理版)
+   - 只調整排列/註解/排版，功能不變
+   ========================= */
+
+:root{
+  --bg1:#0b1020; --bg2:#111827;
+  --glass1: rgba(255,255,255,.11);
+  --glass2: rgba(255,255,255,.06);
+  --stroke: rgba(255,255,255,.16);
+  --stroke2: rgba(255,255,255,.10);
+  --text: rgba(255,255,255,.92);
+  --muted: rgba(255,255,255,.65);
+  --brand: #60a5fa; --brand2:#a78bfa;
+  --ok:#34d399; --err:#fb7185;
+  --shadow: 0 18px 70px rgba(0,0,0,.45);
+  --shadow2: 0 12px 35px rgba(0,0,0,.35);
+  --r: 18px; --r2: 14px;
+}
+*{ box-sizing:border-box; }
+body{
+  margin:0; min-height:100vh; color:var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  background:
+    radial-gradient(950px 520px at 10% 10%, rgba(96,165,250,.22), transparent 55%),
+    radial-gradient(900px 520px at 90% 15%, rgba(167,139,250,.18), transparent 55%),
+    radial-gradient(900px 600px at 55% 110%, rgba(52,211,153,.10), transparent 60%),
+    linear-gradient(135deg, var(--bg1), var(--bg2));
+}
+.wrap{ max-width:1100px; margin:0 auto; padding:18px 16px 90px; }
+
+/* =========================
+   Base / Layout
+   ========================= */
+
+/* top */
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; margin-bottom:16px;
+}
+.leftTop{ display:flex; align-items:center; gap:12px; }
+.avatarBtn{
+  width:40px; height:40px; border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  display:grid; place-items:center;
+  cursor:pointer; user-select:none;
+  box-shadow: 0 18px 45px rgba(0,0,0,.25);
+  backdrop-filter: blur(10px);
+}
+.avatarBtn:hover{ background: rgba(255,255,255,.10); }
+.loginDot{
+  width:10px; height:10px; border-radius:999px;
+  background: rgba(255,255,255,.25);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.22);
+}
+.loginDot.ok{ background: rgba(52,211,153,.9); }
+.loginDot.err{ background: rgba(251,113,133,.9); }
+
+.brand{ display:flex; align-items:center; gap:10px; user-select:none; cursor: pointer; }
+.logo{
+  width:42px; height:42px; border-radius:14px;
+  background: linear-gradient(135deg, rgba(96,165,250,.95), rgba(167,139,250,.95));
+  box-shadow: 0 18px 45px rgba(96,165,250,.18);
+  display:grid; place-items:center; font-weight:900;
+}
+.brand h1{ margin:0; font-size:16px; line-height:1.1; }
+.brand p{ margin:4px 0 0; font-size:12px; color:var(--muted); }
+
+/* =========================
+   Cards / Containers
+   ========================= */
+
+/* cards */
+.card{
+  border:1px solid var(--stroke);
+  background: linear-gradient(180deg, var(--glass1), var(--glass2));
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  overflow:hidden;
+}
+.head{
+  padding:16px 16px 10px;
+  border-bottom:1px solid var(--stroke2);
+  display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
+}
+.head h2{ margin:0; font-size:13px; letter-spacing:.3px; }
+.head p{ margin:6px 0 0; font-size:12px; color:var(--muted); line-height:1.35; }
+.body{ padding:14px 16px 16px; }
+
+.feedControls{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+
+.feedTabs{ margin: 10px 0 12px; }
+.feedTabsInner{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: 999px;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(17,24,39,.30);
+}
+.feedTab{
+  appearance:none;
+  border:none;
+  background: transparent;
+  color: rgba(255,255,255,.65);
+  font-weight:900;
+  font-size:12px;
+  letter-spacing:.2px;
+  padding:10px 12px;
+  cursor:pointer;
+  user-select:none;
+}
+.feedTab:hover{ background: rgba(255,255,255,.06); }
+.feedTab.active{
+  color: rgba(255,255,255,.95);
+  background: rgba(255,255,255,.12);
+}
+.feedTab.following.active{
+  background: rgba(52,211,153,.16);
+}
+
+.search{
+  flex:1; min-width:220px;
+  border-radius: 999px;
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(17,24,39,.35);
+  color: var(--text);
+  padding:10px 12px;
+  outline:none;
+}
+.search::placeholder{ color: rgba(255,255,255,.35); }
+
+.btn{
+  border:none; border-radius: 999px;
+  padding:10px 14px; cursor:pointer;
+  font-weight:800; font-size:12px; letter-spacing:.2px;
+  color:rgba(255,255,255,.95);
+  background: rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);
+  user-select:none;
+}
+.btn:hover{ background: rgba(255,255,255,.14); }
+.btn.primary{
+  background: linear-gradient(135deg, rgba(96,165,250,.95), rgba(167,139,250,.90));
+  border: none;
+  box-shadow: 0 16px 40px rgba(96,165,250,.20);
+}
+.btn.ghost{ background: rgba(255,255,255,.04); }
+.btn.danger{
+  background: rgba(251,113,133,.15);
+  border-color: rgba(251,113,133,.35);
+}
+
+.msg{
+  margin-top:10px; padding:10px 12px;
+  border-radius: 12px;
+  border:1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  font-size:12px;
+  color: var(--muted);
+  display:none;
+}
+.msg.ok{ border-color: rgba(52,211,153,.35); background: rgba(52,211,153,.10); color: rgba(255,255,255,.88); }
+.msg.err{ border-color: rgba(251,113,133,.35); background: rgba(251,113,133,.10); color: rgba(255,255,255,.88); }
+
+.hint{ margin-top:10px; font-size:12px; color:var(--muted); line-height:1.45; }
+
+/* =========================
+   Feed / Post UI
+   ========================= */
+
+/* feed */
+.feed{ display:flex; flex-direction:column; gap:12px; padding:14px 16px 18px; }
+.postCard{
+  scroll-margin-top: 90px;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.06);
+  border-radius: var(--r2);
+  overflow:hidden;
+  box-shadow: var(--shadow2);
+}
+.postMeta{
+  padding:12px 12px 0;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:6px;
+}
+
+.postMeta .time{
+  margin-left:36px;
+}
+.nameLine{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:12px; }
+.badge{
+  padding:3px 8px; border-radius: 999px;
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.05);
+  color: var(--muted);
+  font-size: 11px;
+}
+.time{ font-size:11px; color: var(--muted); white-space:nowrap; }
+.postBody{
+  padding:10px 12px 12px;
+  color: rgba(255,255,255,.90);
+  font-size:13px; line-height:1.55;
+  white-space:pre-wrap; word-break:break-word;
+}
+.imgWrap{ border-top:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.12); }
+.imgWrap img{ width:100%; display:block; max-height: 460px; object-fit: contain; }
+/* footer：左 likes / 中 留言 / 右 actions，永遠置中不受右側寬度影響 */
+.footerBar{
+  padding:10px 12px 12px;
+  border-top:1px solid rgba(255,255,255,12);
+
+  display:grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items:center;
+  gap:10px;
+}
+
+.footerBar > :nth-child(1){ justify-self:start; }
+.footerBar > :nth-child(2){ justify-self:center; }
+.footerBar > :nth-child(3){ justify-self:end; }
+
+/* =========================
+   Comments UI
+   ========================= */
+
+/* comments */
+.commentsWrap{ padding: 0 12px 12px; }
+.commentsPanel{
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  border-radius: 14px;
+  padding: 10px;
+}
+.commentsHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.commentsList{ display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+.commentItem{
+  border:1px solid rgba(255,255,255,.10);
+  background: rgba(17,24,39,.28);
+  border-radius: 14px;
+  padding: 10px;
+}
+.commentMeta{
+  display:flex;
+  align-items:center;
+  gap:10px;           /* 左側作者跟右側群組的距離 */
+}
+
+.commentMetaRight{
+  margin-left:auto;   /* 把右側整坨推到最右邊 */
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;            /* 右側：時間/已編輯/編輯/刪除 之間更緊 */
+  flex-wrap:wrap;
+}
+.commentTime{ font-size:11px; color: var(--muted); white-space:nowrap; }
+.commentContent{ margin-top:8px; font-size: 13px; line-height: 1.5; white-space:pre-wrap; word-break:break-word; }
+.commentEditArea{ margin-top: 8px; }
+.commentEditInput{ min-height: 84px; }
+.commentEditActions{ display:flex; gap:10px; justify-content:flex-end; margin-top:8px; }
+.commentComposer{ margin-top: 10px; }
+.commentInput{ min-height: 70px; }
+.commentActions{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-top: 8px; }
+
+.commentAvatar,
+.commentFallback{
+  width:28px;
+  height:28px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  box-shadow: 0 12px 35px rgba(0,0,0,.25);
+  flex:0 0 auto;
+}
+.commentAvatar{ object-fit:cover; display:block; }
+.commentFallback{ display:grid; place-items:center; font-weight:900; color: rgba(255,255,255,.88); }
+
+/* =========================
+   Create page
+   ========================= */
+
+/* create page */
+.formGrid{
+  display:grid;
+  grid-template-columns: 120px 1fr;
+  gap:10px;
+  align-items:start;
+  margin:10px 0;
+}
+.formGrid label{
+  font-size:12px;
+  color:var(--muted);
+  padding-top:10px;
+}
+input, textarea{
+  width:100%;
+  border-radius: 14px;
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(17,24,39,.35);
+  color: var(--text);
+  padding:10px 12px;
+  outline:none;
+}
+textarea{ min-height: 120px; resize: vertical; }
+input::placeholder, textarea::placeholder{ color: rgba(255,255,255,.35); }
+.miniRow{
+  display:flex; justify-content:space-between; align-items:center;
+  gap:10px;
+  margin-top:8px;
+  color: var(--muted);
+  font-size:12px;
+}
+.chip{
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.05);
+  font-size:12px;
+  color: rgba(255,255,255,.85);
+  user-select:none;
+  cursor:pointer;
+}
+
+/* =========================
+   Modal / Overlay
+   ========================= */
+
+/* modal */
+.overlay{
+  position:fixed; inset:0;
+  background: rgba(0,0,0,.55);
+  backdrop-filter: blur(8px);
+  display:none;
+  align-items:center; justify-content:center;
+  padding:18px;
+  z-index: 50;
+}
+.overlay.open{ display:flex; }
+.modal{
+  width: min(520px, 100%);
+  border:1px solid rgba(255,255,255,.18);
+  background: linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.07));
+  border-radius: 22px;
+  box-shadow: 0 30px 120px rgba(0,0,0,.55);
+  overflow:hidden;
+}
+.modalTop{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px;
+  border-bottom:1px solid rgba(255,255,255,.10);
+}
+.title{ display:flex; align-items:center; gap:10px; }
+.miniLogo{
+  width:34px; height:34px; border-radius:12px;
+  background: linear-gradient(135deg, rgba(96,165,250,.95), rgba(167,139,250,.95));
+  display:grid; place-items:center;
+  font-weight:900;
+}
+.closeBtn{
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  border-radius: 999px;
+  padding:8px 10px;
+  cursor:pointer;
+  font-weight:800;
+  font-size:12px;
+}
+.tabs{
+  display:flex; gap:8px; flex-wrap:wrap;
+  padding:12px 16px 0;
+}
+.tab{
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.05);
+  color:var(--text);
+  padding:8px 10px;
+  border-radius:999px;
+  font-size:12px; cursor:pointer; user-select:none;
+  font-weight:800;
+}
+.tab.active{
+  border-color: rgba(96,165,250,.55);
+  background: rgba(96,165,250,.15);
+}
+.modalBody{ padding:12px 16px 16px; }
+
+/* =========================
+   Bottom navigation
+   ========================= */
+
+/* bottom nav */
+.bottomNav{
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 14px;
+  width: min(620px, calc(100% - 24px));
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(17,24,39,.55);
+  backdrop-filter: blur(12px);
+  border-radius: 999px;
+  box-shadow: 0 20px 80px rgba(0,0,0,.45);
+  display:flex;
+  padding: 8px;
+  gap: 8px;
+  z-index: 40;
+}
+.navItem{
+  flex:1;
+  border:1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.88);
+  border-radius: 999px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 12px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap: 8px;
+  user-select:none;
+}
+.navItem span{ color: rgba(255,255,255,.72); font-weight: 800; }
+.navItem.active{
+  border-color: rgba(96,165,250,.55);
+  background: rgba(96,165,250,.18);
+}
+
+code{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 11px; }
+
+/* =========================
+   Account (top-right avatar menu)
+   ========================= */
+
+/* ===== account (top-right) ===== */
+.rightTop{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.accountArea{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  position:relative;
+}
+
+.btn.small{
+  padding:8px 12px;
+  font-size:12px;
+}
+
+.btn.tiny{
+  padding:6px 10px;
+  font-size:11px;
+}
+
+.avatarMenu{
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  cursor:pointer;
+  user-select:none;
+
+  /* 新增：把 hover 區域往下撐出來（要 >= 你 popover 的間距） */
+  padding-bottom: 14px;
+}
+
+/* ✅ 點一下固定打開（hover 或 open 都能顯示） */
+.avatarMenu.open .avatarPopover{
+  opacity: 1;
+  transform: translateY(10px);
+  pointer-events: auto;
+}
+
+.avatarImg,
+.avatarFallback{
+  width:40px;
+  height:40px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  box-shadow: 0 18px 45px rgba(0,0,0,.25);
+  backdrop-filter: blur(10px);
+}
+
+.avatarImg{
+  object-fit:cover;
+  display:none;
+}
+
+.avatarFallback{
+  display:grid;
+  place-items:center;
+  font-weight:900;
+  color: rgba(255,255,255,.88);
+}
+
+.avatarPopover{
+  position:absolute;
+  top: 100%;
+  right: 0;
+  width: 280px;
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(17,24,39,.80);
+  backdrop-filter: blur(14px);
+  border-radius: 16px;
+  box-shadow: 0 20px 80px rgba(0,0,0,.45);
+  padding: 12px;
+  z-index: 999; /* 確保在最上層，避免被蓋住 */
+
+  /* 用 transform 做視覺上的間距（但 hover 區域靠 padding-bottom 撐住） */
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity .15s ease, transform .15s ease;
+}
+
+/* ✅ 透明橋接：覆蓋頭像到 popover 之間的「斜向路徑」 */
+.avatarPopover::before{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  top:-16px;     /* 視覺間距是 translateY(10px)，這裡抓大一點更保險 */
+  height:16px;
+  background: transparent;
+}
+
+
+.avatarMenu:hover .avatarPopover{
+  opacity: 1;
+  transform: translateY(10px);
+  pointer-events: auto;
+}
+
+.popHeader{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  margin-bottom:10px;
+}
+
+.popName{
+  font-weight:900;
+  font-size:13px;
+  color: rgba(255,255,255,.92);
+}
+
+.popEmail{
+  font-size:12px;
+  color: rgba(255,255,255,.65);
+  word-break: break-word;
+}
+
+.popBio{
+  font-size:12px;
+  color: rgba(255,255,255,.75);
+  line-height:1.45;
+  white-space:pre-wrap;
+  word-break:break-word;
+  margin-bottom: 12px;
+  min-height: 0;
+}
+
+.popActions{
+  display:flex;
+  justify-content:flex-end;
+}
+
+/* =========================
+   Auth page
+   ========================= */
+
+/* ===== auth page layout ===== */
+.authCard{
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.authTabs{
+  padding: 0;
+  margin-top: 6px;
+}
+
+/* ===== likes link ===== */
+.likesLink{
+  cursor:pointer;
+  user-select:none;
+  border-bottom: 1px dotted rgba(255,255,255,.55);
+}
+.likesLink:hover{
+  border-bottom-color: rgba(255,255,255,.9);
+}
+
+/* ===== likes hover popover (fixed, 不怕被 overflow 擋住) ===== */
+.likesPopover{
+  position: fixed;
+  z-index: 3000;
+  min-width: 260px;
+  max-width: 340px;
+
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(17,24,39,.88);
+  backdrop-filter: blur(14px);
+  border-radius: 14px;
+  box-shadow: 0 20px 80px rgba(0,0,0,.45);
+  padding: 10px;
+
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity .12s ease, transform .12s ease;
+}
+.likesPopover.show{
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.likesPopoverTitle{
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+.likesPopoverList{
+  display: grid;
+  gap: 6px;
+}
+.likeRow{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding: 6px 8px;
+  border-radius: 12px;
+}
+.likeRow:hover{
+  background: rgba(255,255,255,.06);
+}
+.likeMiniAvatar,
+.likeMiniFallback{
+  width:26px;
+  height:26px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  flex: 0 0 auto;
+}
+.likeMiniAvatar{ object-fit:cover; display:block; }
+.likeMiniFallback{
+  display:grid;
+  place-items:center;
+  font-weight:900;
+  color: rgba(255,255,255,.88);
+}
+.likeName{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+/* ===== likes modal content ===== */
+.likesModalHeader{
+  opacity:.85;
+  margin: 4px 0 10px;
+}
+.likesList{
+  display:grid;
+  gap: 8px;
+  max-height: 60vh;
+  overflow:auto;
+  padding-right: 2px;
+}
+
+/* =========================
+   Post Author (avatar + popover)
+   ========================= */
+
+.authorChip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:4px 8px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+  cursor:pointer;
+  user-select:none;
+}
+
+.authorChip:hover{
+  background: rgba(255,255,255,.08);
+}
+
+.authorAvatar,
+.authorFallback{
+  width:28px;
+  height:28px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  box-shadow: 0 12px 35px rgba(0,0,0,.25);
+  flex:0 0 auto;
+}
+
+.authorAvatar{ object-fit:cover; display:block; }
+
+.authorFallback{
+  display:grid;
+  place-items:center;
+  font-weight:900;
+  color: rgba(255,255,255,.88);
+}
+
+/* ---- user popover ---- */
+.userPopover{
+  position: fixed;
+  z-index: 90;
+  width: 300px;
+  border:1px solid rgba(255,255,255,.16);
+  background: rgba(17,24,39,.82);
+  backdrop-filter: blur(14px);
+  border-radius: 16px;
+  box-shadow: 0 20px 80px rgba(0,0,0,.45);
+  padding: 12px;
+
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity .12s ease, transform .12s ease;
+}
+
+.userPopover.show{
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.userPopoverTop{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.userPopAvatar,
+.userPopFallback{
+  width:38px;
+  height:38px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  box-shadow: 0 12px 35px rgba(0,0,0,.25);
+  flex:0 0 auto;
+}
+
+.userPopAvatar{ object-fit:cover; display:block; }
+
+.userPopFallback{
+  display:grid;
+  place-items:center;
+  font-weight:900;
+  color: rgba(255,255,255,.88);
+}
+
+.userPopMeta .name{
+  font-weight: 900;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.userPopMeta .email{
+  margin-top: 2px;
+  font-size: 12px;
+  color: rgba(255,255,255,.65);
+  word-break: break-word;
+}
+
+.userPopBio{
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(255,255,255,.85);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.userPopHint{
+  margin-top: 8px;
+  font-size: 11px;
+  color: rgba(255,255,255,.65);
+}
+
+
+.commentEditedTag{
+  display:inline-block;
+  margin-left:6px;
+  font-size:11px;
+  line-height:1;
+  padding:3px 8px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.16);
+  color: var(--muted);
+}
+
+/* user popover actions */
+.userPopActions{
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* follow button states */
+.followBtn.follow{
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.followBtn.following{
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+
+/* =========================
+   Profile page
+   ========================= */
+.profileHero{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+  padding:18px 10px 6px;
+}
+
+.profileAvatarWrap{
+  width:110px;
+  height:110px;
+  border-radius:999px;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.15);
+  display:grid;
+  place-items:center;
+  background:rgba(255,255,255,.06);
+}
+
+.profileAvatarImg{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.profileAvatarFallback{
+  width:100%;
+  height:100%;
+  display:grid;
+  place-items:center;
+  font-weight:900;
+  font-size:40px;
+  opacity:.9;
+}
+
+.profileName{
+  font-weight:900;
+  font-size:20px;
+}
+
+.profileEmail{
+  opacity:.8;
+  font-size:13px;
+}
+
+.profileActionsRow{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:10px;
+  margin-top:10px;
+  flex-wrap:wrap;
+}
+
+.profileActionsRow .btn{
+  height:34px;
+  line-height:34px;
+  padding:0 12px;
+}
+
+.profileBioBox{
+  margin:10px 8px 0;
+  padding:12px 12px;
+  border-radius:14px;
+  background:rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.10);
+}
+
+.profileBioTitle{
+  font-weight:800;
+  margin-bottom:6px;
+  opacity:.9;
+}
+
+.profileBioText{
+  white-space:pre-wrap;
+  line-height:1.45;
+  opacity:.95;
+}
+
+.profileTabs{
+  margin:14px 8px 0;
+  display:flex;
+  gap:8px;
+  border-bottom:1px solid rgba(255,255,255,.10);
+}
+
+.profileTabBtn{
+  flex:1;
+  padding:10px 8px;
+  border:none;
+  background:transparent;
+  color:inherit;
+  font-weight:800;
+  opacity:.75;
+  cursor:pointer;
+  border-bottom:3px solid transparent;
+}
+
+.profileTabBtn.active{
+  opacity:1;
+  border-bottom-color:rgba(255,255,255,.65);
+}
+
+.profileContent{
+  padding:10px 0 0;
+}
+
+.profileCommentsList{
+  padding:8px 10px 14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+.profileCommentCard{
+  padding:10px 10px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.04);
+}
+
+.profileCommentPostRef{
+  margin-top:8px;
+  display:flex;
+  gap:10px;
+  opacity:.9;
+  font-size:13px;
+}
+
+.profileCommentPostRef a{
+  color:inherit;
+  text-decoration:underline;
+  opacity:.9;
+}
+
+.authorChip{
+  cursor:pointer;
+}
+
+.likeUserRow{
+  cursor: pointer;
+}
+
+.likeRow.hasActions{
+  cursor: pointer;
+}
+.likeRowActions{
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.likeRowActions .btn{
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
+
+/* ===== User search (Twitter-like carousel) ===== */
+
+.searchGroup{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.searchMode{
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.12);
+  color:inherit;
+  padding:10px 12px;
+  border-radius:12px;
+  outline:none;
+}
+.searchMode option{ color:#111; }
+.userSearchSection{
+  margin: 10px 0 14px;
+  padding: 10px 10px 12px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.10);
+}
+.userSearchBar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.userSearchLabel{
+  font-weight:900;
+  opacity:.95;
+}
+.userSearchNav{
+  display:flex;
+  gap:8px;
+}
+.iconBtn{
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.15);
+  background:rgba(255,255,255,.06);
+  color:inherit;
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+}
+.iconBtn:hover{ background:rgba(255,255,255,.10); }
+.iconBtn:disabled{
+  opacity:.35;
+  cursor:not-allowed;
+}
+.userCarouselWrap{
+  overflow:hidden;
+  border-radius:14px;
+}
+.userCarousel{
+  display:flex;
+  gap:12px;
+  overflow-x:auto;
+  scroll-behavior:smooth;
+  padding-bottom:4px;
+}
+.userCarousel::-webkit-scrollbar{ height:10px; }
+.userCarousel::-webkit-scrollbar-thumb{
+  background: rgba(255,255,255,.15);
+  border-radius: 99px;
+}
+.userCard{
+  flex: 0 0 310px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(0,0,0,.20);
+  overflow:hidden;
+  position:relative;
+}
+.userCardTop{
+  height: 68px;
+  background: linear-gradient(135deg, rgba(255,255,255,.15), rgba(255,255,255,.03));
+  background-size: cover;
+  background-position: center;
+}
+.userCardBody{
+  padding: 10px 12px 12px;
+  display:flex;
+  gap:10px;
+}
+.userCardLeft{
+  width:72px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+}
+.userAvatar{
+  width:54px;
+  height:54px;
+  border-radius: 999px;
+  object-fit:cover;
+  border:1px solid rgba(255,255,255,.18);
+}
+.userAvatarFallback{
+  width:54px;
+  height:54px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);
+  font-weight:900;
+}
+.userMiniName{
+  font-weight:900;
+  font-size: 12px;
+  text-align:center;
+  line-height: 1.1;
+  max-width:72px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.userMiniEmail{
+  font-size: 11px;
+  opacity:.78;
+  text-align:center;
+  max-width:72px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.userCardMain{
+  flex:1;
+  min-width:0;
+}
+.userBio{
+  font-size: 12px;
+  opacity:.9;
+  line-height: 1.3;
+  max-height: 48px;
+  overflow:hidden;
+}
+.userCardActions{
+  margin-top:10px;
+  display:flex;
+  justify-content:flex-end;
+}
+.userFollowBtn{
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+.feedTabs.disabled{
+  opacity:.55;
+  pointer-events:none;
+}
+
+/* ===== Profile Hero banner behind avatar ===== */
+.profileHero{
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 0;
+  display: block; /* 覆蓋原本 flex，避免 banner 寬度縮成 0 */
+  gap: 0;
+}
+
+.profileBannerLayer{
+  width: 100%;
+  height: 180px;
+  background: linear-gradient(135deg, rgba(255,255,255,.15), rgba(255,255,255,.03));
+  background-size: cover;
+  background-position: center;
+}
+
+.profileHeroInner{
+  position: relative;
+  z-index: 1;
+  padding: 0 14px 14px;
+  margin-top: -46px;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.profileSettingsRow{
+  margin-top: 10px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.profileSettingsBtn{
+  position: static;
+  z-index: auto;
+}
+
+
+/* ===== Create page standalone ===== */
+.createPanel{
+  border:none;
+  background: rgba(255,255,255,.05);
+  border-radius: 18px;
+  box-shadow: none;
+  overflow:hidden;
+
+  /* keep the same visual layout as the old embedded Create panel */
+  width: 100%;
+  max-width: 860px;
+  margin: 10px auto 0;
+}
+
+.createHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.10);
+}
+.createBody{
+  padding: 16px;
+}

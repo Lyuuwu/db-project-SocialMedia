@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>登入 / 註冊 - Mini IG Demo</title>
+
+  <link rel="stylesheet" href="/static/app.css" />
+  <script src="/static/app.js" defer></script>
+</head>
+
+<body data-page="auth">
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">MI</div>
+        <div>
+          <h1>登入 / 註冊</h1>
+          <p>登入成功後會自動回到上一頁</p>
+        </div>
+      </div>
+
+      <div class="rightTop">
+        <button class="btn ghost small" onclick="goBackFromAuth()">返回</button>
+      </div>
+    </div>
+
+    <div class="card authCard">
+      <div class="body">
+        <div class="tabs authTabs">
+          <div id="tabLogin" class="tab active" onclick="uiSetAuthTab('login')">登入</div>
+          <div id="tabRegister" class="tab" onclick="uiSetAuthTab('register')">註冊</div>
+        </div>
+
+        <!-- LOGIN -->
+        <div id="panelLogin" style="margin-top:12px;">
+          <div class="formGrid">
+            <label>Email</label>
+            <input id="loginEmail" placeholder="example@mail.com" />
+          </div>
+          <div class="formGrid">
+            <label>password</label>
+            <input id="loginPwd" type="password" placeholder="至少 6 字元（依你後端規則）" maxlength="64" />
+          </div>
+
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+            <button class="btn primary" onclick="login()">登入</button>
+          </div>
+
+          <div id="authMsg" class="msg"></div>
+        </div>
+
+        <!-- REGISTER -->
+        <div id="panelRegister" style="display:none; margin-top:12px;">
+          <div class="formGrid"><label>user_name*</label><input id="regUserName" maxlength="20" placeholder="你的暱稱" /></div>
+          <div class="formGrid"><label>Email*</label><input id="regEmail" maxlength="50" placeholder="example@mail.com" /></div>
+          <div class="formGrid"><label>password*</label><input id="regPwd" maxlength="64" type="password" placeholder="至少 6 字元（依你後端規則）" /></div>
+          <div class="formGrid"><label>bio</label><input id="regBio" maxlength="200" placeholder="一句自介（可空）" /></div>
+          <div class="formGrid"><label>頭像</label><input id="regAvatarFile" type="file" accept="image/*" /></div>
+
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+            <button class="btn primary" onclick="register()">註冊</button>
+          </div>
+
+          <div id="regMsg" class="msg"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Create Post</title>
+
+  <link rel="stylesheet" href="/static/app.css" />
+  <script src="/static/app.js" defer></script>
+</head>
+
+<body data-page="create">
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand" style="cursor:pointer;" onclick="location.href='/'">
+        <div class="logo">MI</div>
+        <div>
+          <h1>Mini IG Demo</h1>
+          <p>建立貼文</p>
+        </div>
+      </div>
+
+      <div class="rightTop">
+        <div class="accountArea" id="accountArea">
+          <button id="loginNavBtn" class="btn primary small" onclick="goToAuth()">登入 / 註冊</button>
+
+          <div id="avatarMenu" class="avatarMenu" style="display:none;">
+            <img id="avatarImg" class="avatarImg" alt="avatar" />
+            <div id="avatarFallback" class="avatarFallback" aria-hidden="true">U</div>
+
+            <div class="avatarPopover">
+              <div class="popHeader">
+                <div class="popName" id="popName">—</div>
+                <div class="popEmail" id="popEmail">—</div>
+              </div>
+              <div class="popBio" id="popBio"></div>
+              <div class="popActions">
+                <button class="btn ghost small" onclick="location.href='/'">回首頁</button>
+                <button class="btn danger small" onclick="logout()">登出</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="createPanel">
+      <div class="createHead">
+        <div>
+          <h2>發佈貼文</h2>
+          <p>內容＋本機圖片（可選）。送出後會回到 Home。</p>
+        </div>
+        <div class="badge" id="whoami">未登入</div>
+      </div>
+
+      <div class="createBody">
+        <div class="formGrid">
+          <label>圖片</label>
+          <div>
+            <input id="postFile" type="file" accept="image/*" />
+            <div class="miniRow">
+              <span>選擇你裝置中的圖片（可留空）</span>
+              <span class="chip" onclick="clearPostImage()">清除</span>
+            </div>
+
+            <div id="previewBox" style="margin-top:10px; display:none;">
+              <div class="badge" style="margin-bottom:6px;">圖片預覽</div>
+              <img id="previewImg"
+                style="width:100%; max-height:420px; object-fit:contain;
+                      border-radius:14px; border:1px solid rgba(255,255,255,.15);" />
+            </div>
+          </div>
+        </div>
+
+        <div class="formGrid">
+          <label>內容*</label>
+          <div>
+            <textarea id="postContent" maxlength="500" placeholder="想說些什麼？"></textarea>
+            <div class="miniRow">
+              <span id="charCount">0 / 500</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+          <button class="btn primary" onclick="createPost()">發佈</button>
+          <button class="btn ghost" onclick="location.href='/'">回到首頁</button>
+        </div>
+
+        <div id="postMsg" class="msg"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Nav -->
+  <div class="bottomNav">
+    <button class="navItem" id="navHome" onclick="location.href='/'">🏠 <span>Home</span></button>
+    <button class="navItem" id="navMe" onclick="goToMyProfile()">👤 <span>Me</span></button>
+    <button class="navItem active" id="navCreate" onclick="location.href='/create'">➕ <span>Create</span></button>
+  </div>
+</body>
+</html>

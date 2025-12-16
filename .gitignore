@@ -1,0 +1,12 @@
+.env
+.vscode
+bkup/
+uploads/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+driver.py
+test.py
+app.zip
